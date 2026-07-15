@@ -15,6 +15,7 @@ const Signin = () => {
   const { currentUser } = useSelector((state) => state.user);
   const isActive = currentUser?.isActive;
 
+  const BRAND_NAME = import.meta.env.VITE_BRAND_NAME;
   return (
     <div className="flex justify-center items-center min-h-screen bg-[#0F3A76] p-4 relative overflow-hidden">
       {/* Top-Right Light Effect */}
@@ -46,7 +47,7 @@ const Signin = () => {
                 />
               </div>
               <h1 className="text-3xl font-bold text-[#0F3A76] drop-shadow-sm">
-               افغان کارگو
+       {BRAND_NAME}
               </h1>
             </div>
             <p className="text-gray-600 mt-2">لطفاً اطلاعات خود را وارد کنید</p>
