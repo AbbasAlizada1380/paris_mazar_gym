@@ -1,7 +1,7 @@
 import { Athletes } from "../Models/Athletes.js";
 import { Op } from "sequelize";
 
-// ─── SEARCH ──────────────────────────────────────────────────
+// ─── SEARCH (with pagination) ──────────────────────────────
 export const searchAthletes = async (req, res) => {
   try {
     const { query } = req.query;
@@ -9,24 +9,42 @@ export const searchAthletes = async (req, res) => {
       return res.status(400).json({ message: "Search query is required" });
     }
 
-    const athletes = await Athletes.findAll({
-      where: {
-        [Op.or]: [
-          { full_name: { [Op.like]: `%${query}%` } },
-          { father_name: { [Op.like]: `%${query}%` } },
-          { nic_number: { [Op.like]: `%${query}%` } },
-          { permanent_residence: { [Op.like]: `%${query}%` } },
-          { current_residence: { [Op.like]: `%${query}%` } },
-        ],
-      },
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    // Search conditions
+    const where = {
+      [Op.or]: [
+        { full_name: { [Op.like]: `%${query}%` } },
+        { father_name: { [Op.like]: `%${query}%` } },
+        { nic_number: { [Op.like]: `%${query}%` } },
+        { permanent_residence: { [Op.like]: `%${query}%` } },
+        { current_residence: { [Op.like]: `%${query}%` } },
+      ],
+    };
+
+    // Use findAndCountAll for pagination
+    const { rows: athletes, count: totalItems } = await Athletes.findAndCountAll({
+      where,
       order: [["createdAt", "DESC"]],
+      limit,
+      offset,
     });
 
+    const totalPages = Math.ceil(totalItems / limit);
+
     return res.status(200).json({
-      message: athletes.length
-        ? "Search completed successfully"
-        : "No athletes found",
+      message: athletes.length ? "Search completed successfully" : "No athletes found",
       data: athletes,
+      meta: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+        searchQuery: query.trim(),
+      },
     });
   } catch (error) {
     console.error("Search error:", error);

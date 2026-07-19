@@ -501,7 +501,98 @@ export const getPaidFeesByAthlete = async (req, res) => {
     });
   }
 };
+/**
+ * @desc   Search active fees by athlete (name/father/NIC)
+ * @route  GET /api/fees/search/active
+ * @query  query (required), page, limit
+ */
+export const searchActiveFeesByAthlete = async (req, res) => {
+  try {
+    const { query } = req.query;
 
+    if (!query || query.trim() === '') {
+      return res.status(400).json({
+        message: "Search query is required",
+      });
+    }
+
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    // Build search conditions for Athlete model
+    const athleteSearchConditions = {
+      [Op.or]: [
+        { full_name: { [Op.like]: `%${query}%` } },
+        { father_name: { [Op.like]: `%${query}%` } },
+        { nic_number: { [Op.like]: `%${query}%` } },
+      ],
+    };
+
+    // Find matching athletes
+    const matchingAthletes = await Athletes.findAll({
+      where: athleteSearchConditions,
+      attributes: ['id'],
+      raw: true,
+    });
+
+    const athleteIds = matchingAthletes.map(a => a.id);
+
+    if (athleteIds.length === 0) {
+      return res.status(200).json({
+        message: "No active fees found for athletes matching your search criteria",
+        data: [],
+        meta: {
+          currentPage: page,
+          totalPages: 0,
+          totalItems: 0,
+          itemsPerPage: limit,
+          searchQuery: query,
+        },
+      });
+    }
+
+    // Find **active** fees for these athletes
+    const { rows: fees, count: totalItems } = await Fees.findAndCountAll({
+      where: {
+        athleteId: { [Op.in]: athleteIds },
+        isactive: true, // ⬅️ only active fees
+      },
+      include: [
+        {
+          model: Athletes,
+          as: "athlete",
+          attributes: ["id", "full_name", "father_name", "nic_number", "photo"],
+        },
+      ],
+      order: [["startDate", "ASC"]],
+      limit,
+      offset,
+    });
+
+    const totalPages = Math.ceil(totalItems / limit);
+
+    res.status(200).json({
+      message: "Active fees search completed successfully",
+      data: fees,
+      meta: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+        searchQuery: query,
+        matchingAthletesCount: athleteIds.length,
+      },
+    });
+  } catch (error) {
+    console.error("Search active fees error:", error);
+    res.status(500).json({
+      message: "Error searching active fees",
+      error: error.message,
+    });
+  }
+};
 
 Athletes.hasMany(Fees, {
     foreignKey: "athleteId",

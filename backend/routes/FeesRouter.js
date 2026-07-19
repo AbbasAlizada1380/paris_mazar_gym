@@ -8,8 +8,9 @@ import {
   getFeesInRange,
   getActiveFeesToday,
   searchFeesByAthlete,
+  searchActiveFeesByAthlete,  // ⬅️ new import
   updateFeeActiveStatus,
-  getPaidFeesByAthlete, // ⬅️ new import
+  getPaidFeesByAthlete,
 } from "../Controllers/FeesController.js";
 
 const feesRouter = express.Router();
@@ -18,10 +19,12 @@ const feesRouter = express.Router();
 feesRouter.post("/", createFee);
 feesRouter.get("/", getAllFees);
 feesRouter.get("/active", getActiveFeesToday);
-feesRouter.get("/search", searchFeesByAthlete);
+
+// Search routes
+feesRouter.get("/search", searchFeesByAthlete);               // all fees
+feesRouter.get("/search/active", searchActiveFeesByAthlete);  // ⬅️ NEW: only active fees
 
 feesRouter.get("/:athleteId/paid", getPaidFeesByAthlete);
-// ⬇️ NEW: Update active status – all fees or single fee
 feesRouter.get("/update-active", updateFeeActiveStatus);        // all fees
 feesRouter.get("/:id/update-active", updateFeeActiveStatus);    // one fee
 

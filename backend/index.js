@@ -12,7 +12,7 @@ import feesRouter from "./routes/FeesRouter.js";
 import ExpenseRoute from "./routes/ExpenseRoute.js";
 import AttendenceRoute from "./routes/AttendenceRoute.js";
 import StaffRoute from "./routes/StaffRoute.js";
-const FRONT_URL=process.env.FRONT_URL
+const FRONT_URL = process.env.FRONT_URL
 const port = 8038;
 const app = express();
 
@@ -23,6 +23,7 @@ const __dirname = dirname(__filename);
 const allowedOrigins = [
   `${FRONT_URL}`, // React local dev
   "http://localhost:3000",
+  'https://pm.tet-soft.com'
 ];
 
 app.use(
@@ -62,7 +63,7 @@ app.use("/attendance", AttendenceRoute);
 
 app.use("/users", userRout);
 app.use("/athletes", athleteRouter);
-app.use("/fees",feesRouter)
+app.use("/fees", feesRouter)
 
 // Sync database and start server
 sequelize
