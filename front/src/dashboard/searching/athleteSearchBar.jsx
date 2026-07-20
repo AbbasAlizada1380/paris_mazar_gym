@@ -1,141 +1,60 @@
-import React, { useState, useRef, useEffect } from "react";
+// athleteSearchBar.jsx
+import { useState, useRef } from "react";
 import { FaSearch, FaTimes } from "react-icons/fa";
-import axios from "axios";
-
-const BASE_URL = import.meta.env.VITE_BASE_URL;
 
 const SearchBar = ({
-  onSearchResults,
-  onSearchError,
+  onSearch,           // called with the search term
   placeholder = "Search...",
   debounceDelay = 500,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
   const debounceTimerRef = useRef(null);
-
-  // Function to search athletes
-  const searchAthletes = async (term) => {
-    if (term.trim() === "") {
-      onSearchResults([]);
-      setHasSearched(false);
-      return;
-    }
-
-    setIsLoading(true);
-    setHasSearched(true);
-
-    try {
-      const response = await axios.get(`${BASE_URL}/athletes/search`, {
-        params: { query: term }
-      });
-      
-      onSearchResults(response.data.data);
-      
-    } catch (error) {
-      console.error("Search error:", error);
-      onSearchError?.(error.response?.data?.message || "Error in search");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Debounced search function
-  const debouncedSearch = (term) => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    debounceTimerRef.current = setTimeout(() => {
-      searchAthletes(term);
-    }, debounceDelay);
-  };
 
   const handleInputChange = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
-    debouncedSearch(value);
+
+    // Debounce the search
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      onSearch(value.trim()); // pass only if needed, parent decides
+    }, debounceDelay);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    searchAthletes(searchTerm);
+    onSearch(searchTerm.trim());
   };
 
   const handleClear = () => {
     setSearchTerm("");
-    setHasSearched(false);
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    onSearchResults([]);
+    onSearch(""); // clear search
   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    };
-  }, []);
-
   return (
-    <div className="search-container relative w-full max-w-md">
+    <div className="relative w-full max-w-md">
       <form onSubmit={handleSubmit} className="relative">
-        <div className="relative group">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={handleInputChange}
-            placeholder={placeholder}
-            className="w-full pr-12 pl-10 py-3 text-right text-gray-800 bg-white border border-gray-300 rounded-lg focus:ring-3 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg focus:pl-12"
-            dir="rtl"
-            aria-label="Search athletes"
-            disabled={isLoading}
-          />
-          
-          {/* Search Icon */}
-          <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
-            {isLoading ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-200 border-t-blue-600"></div>
-            ) : (
-              <FaSearch className="text-gray-400 h-4 w-4 group-focus-within:text-blue-500 transition-colors duration-200" />
-            )}
-          </div>
-          
-          {/* Clear Button */}
-          {searchTerm && !isLoading && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
-              aria-label="Clear search"
-            >
-              <FaTimes className="text-gray-400 hover:text-gray-600 h-4 w-4 transition-colors" />
-            </button>
-          )}
-          
-          {/* Submit Button */}
-          {searchTerm && (
-            <button
-              type="submit"
-              className="absolute left-10 top-1/2 transform -translate-y-1/2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors duration-200 shadow"
-              disabled={isLoading}
-            >
-              {isLoading ? "..." : "Search"}
-            </button>
-          )}
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={handleInputChange}
+          placeholder={placeholder}
+          className="w-full pr-12 pl-10 py-3 text-right text-gray-800 bg-white border border-gray-300 rounded-lg focus:ring-3 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+          dir="rtl"
+        />
+        <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+          <FaSearch className="text-gray-400" />
         </div>
-        
-        {/* Search tips */}
-        {hasSearched && !searchTerm && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm text-gray-600 z-10">
-            <p className="font-medium mb-1">Search tips:</p>
-            <ul className="list-disc list-inside space-y-1">
-              <li>Search by athlete name</li>
-              <li>Search by father's name</li>
-              <li>Search by NIC number</li>
-            </ul>
-          </div>
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2"
+          >
+            <FaTimes className="text-gray-400 hover:text-gray-600" />
+          </button>
         )}
       </form>
     </div>

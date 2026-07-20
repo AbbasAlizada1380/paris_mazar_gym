@@ -1,26 +1,31 @@
+// src/components/fees/Fees.jsx
 import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import Pagination from "../pagination/Pagination";
 import FeesSearchBar from "../searching/feeSearchBar";
 import AthletePaidFeesPDF from "./report/AthletePaidFeesPDF";
 import FeesReport from "./FeesReport";
-import { FaEdit, FaTrash, FaCheck, FaTimes, FaSpinner } from "react-icons/fa";
+import { FaEdit, FaTrash, FaCheck, FaSpinner, FaPrint } from "react-icons/fa";
+import PrintFeePass from "./PrintFeePass";
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
 export default function Fees() {
+  // ---------- State ----------
   const [fees, setFees] = useState([]);
   const [athletes, setAthletes] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [openForm, setOpenForm] = useState(false); // toggle form visibility
+  const [openForm, setOpenForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchMeta, setSearchMeta] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const limit = 10;
+  const limit = 20;
+  const [feeModal, setFeeModal] = useState({ isOpen: false, fee: null });
 
   const [form, setForm] = useState({
     startDate: "",
@@ -32,68 +37,79 @@ export default function Fees() {
     has_cabinate: false,
   });
 
-  /* ================= Fetch Fees ================= */
-  const fetchFees = useCallback(
-    async (page = currentPage, searchData = null) => {
+  // ---------- Unified fetch function ----------
+  const fetchData = useCallback(
+    async (page = 1, query = null) => {
       setLoading(true);
       try {
         let res;
-        if (searchData) {
-          setFees(searchData.fees);
-          setCurrentPage(searchData.meta?.currentPage || 1);
-          setTotalPages(searchData.meta?.totalPages || 1);
-          setTotalItems(searchData.meta?.totalItems || 0);
-          setSearchMeta(searchData.meta);
+        if (query && query.trim()) {
+          // Search mode
+          res = await axios.get(`${BASE_URL}/fees/search`, {
+            params: { query: query.trim(), page, limit },
+          });
+          setFees(res.data.data);
+          setTotalPages(res.data.meta?.totalPages || 1);
+          setTotalItems(res.data.meta?.totalItems || 0);
+          setCurrentPage(res.data.meta?.currentPage || page);
+          setIsSearching(true);
+          setSearchMeta(res.data.meta);
+          setSearchQuery(query.trim());
         } else {
+          // Normal mode
           res = await axios.get(`${BASE_URL}/fees?page=${page}&limit=${limit}`);
           setFees(res.data.data);
-          setCurrentPage(res.data.currentPage);
-          setTotalPages(res.data.totalPages);
-          setTotalItems(res.data.totalItems);
+          setTotalPages(res.data.totalPages || 1);
+          setTotalItems(res.data.totalItems || 0);
+          setCurrentPage(res.data.currentPage || page);
+          setIsSearching(false);
           setSearchMeta(null);
+          setSearchQuery("");
         }
       } catch (err) {
         alert("بارگذاری فیس‌ها ناموفق بود: " + (err.response?.data?.message || err.message));
+        setFees([]);
+        setTotalPages(0);
+        setTotalItems(0);
       } finally {
         setLoading(false);
       }
     },
-    [currentPage]
+    [limit]
   );
 
-  /* ================= Search ================= */
-  const handleSearchResults = (searchResults, meta = null) => {
-    if (searchResults.length === 0 && meta?.totalItems === 0) {
-      setFees([]);
-      setTotalItems(0);
-      setTotalPages(0);
-      setIsSearching(true);
-      setSearchMeta(meta);
-    } else if (searchResults.length > 0) {
-      setFees(searchResults);
-      setTotalItems(meta?.totalItems || searchResults.length);
-      setTotalPages(meta?.totalPages || 1);
-      setIsSearching(true);
-      setSearchMeta(meta);
+  // ---------- Fetch on page change ----------
+  useEffect(() => {
+    if (isSearching && searchQuery) {
+      fetchData(currentPage, searchQuery);
     } else {
-      setIsSearching(false);
-      fetchFees(1);
+      fetchData(currentPage);
+    }
+  }, [currentPage, fetchData, isSearching, searchQuery]);
+
+  // ---------- Search handler (called by SearchBar) ----------
+  const handleSearch = (query) => {
+    if (query.trim() === "") {
+      // Clear search → go to normal list, page 1
+      fetchData(1, null);
+    } else {
+      // New search → reset to page 1 with the query
+      fetchData(1, query);
     }
   };
 
-  const handleSearchError = (errorMessage) => {
-    alert("خطا در جستجو: " + errorMessage);
-    setIsSearching(false);
-    fetchFees(1);
-  };
-
+  // ---------- Clear search (manual button) ----------
   const handleClearSearch = () => {
-    setIsSearching(false);
-    setSearchMeta(null);
-    fetchFees(1);
+    fetchData(1, null);
   };
 
-  /* ================= Form Handlers ================= */
+  // ---------- Pagination handler ----------
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    // useEffect will automatically fetch the new page with the current query
+  };
+
+  // ---------- Form handlers ----------
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm({
@@ -115,7 +131,6 @@ export default function Fees() {
     setEditingId(null);
   };
 
-  // Toggle form and fetch athletes when opening
   const toggleForm = useCallback(async () => {
     if (!openForm) {
       try {
@@ -126,10 +141,10 @@ export default function Fees() {
       }
     }
     setOpenForm((prev) => !prev);
-    if (openForm) resetForm(); // reset when closing
+    if (openForm) resetForm();
   }, [openForm]);
 
-  /* ================= Submit ================= */
+  // ---------- Submit (Create / Update) ----------
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
@@ -146,10 +161,14 @@ export default function Fees() {
       } else {
         await axios.post(`${BASE_URL}/fees`, payload);
       }
-      await fetchFees();
+      // Refresh current view (preserving search if any)
+      if (isSearching && searchQuery) {
+        fetchData(currentPage, searchQuery);
+      } else {
+        fetchData(currentPage);
+      }
       resetForm();
       setOpenForm(false);
-      setIsSearching(false);
     } catch (err) {
       alert(err.response?.data?.message || "عملیات ناموفق بود");
     } finally {
@@ -157,7 +176,7 @@ export default function Fees() {
     }
   };
 
-  /* ================= Edit ================= */
+  // ---------- Edit ----------
   const handleEdit = (fee) => {
     setForm({
       startDate: fee.startDate,
@@ -169,34 +188,31 @@ export default function Fees() {
       has_cabinate: fee.has_cabinate || false,
     });
     setEditingId(fee.id);
-    setOpenForm(true); // open form in edit mode
+    setOpenForm(true);
   };
 
-  /* ================= Delete ================= */
+  // ---------- Delete ----------
   const handleDelete = async (id) => {
     if (!confirm("آیا از حذف این فیس مطمئن هستید؟")) return;
     try {
       await axios.delete(`${BASE_URL}/fees/${id}`);
-      await fetchFees();
-      setIsSearching(false);
+      if (isSearching && searchQuery) {
+        fetchData(currentPage, searchQuery);
+      } else {
+        fetchData(currentPage);
+      }
     } catch (err) {
       alert("حذف ناموفق بود: " + (err.response?.data?.message || err.message));
     }
   };
 
-  useEffect(() => {
-    if (!isSearching) {
-      fetchFees(currentPage);
-    }
-  }, [currentPage, isSearching]);
-
+  // ---------- Render ----------
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6 space-y-8">
       {/* Header */}
       <div className="text-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">مدیریت فیس‌ها</h1>
         <p className="text-gray-600">ثبت و مدیریت فیس‌های ورزشکاران</p>
-
         {editingId && (
           <div className="mt-4 p-4 bg-yellow-100 border border-yellow-400 rounded-xl max-w-md mx-auto">
             <div className="flex items-center justify-center gap-2 text-yellow-800">
@@ -217,8 +233,7 @@ export default function Fees() {
         </button>
         <div className="w-full md:w-96">
           <FeesSearchBar
-            onSearchResults={handleSearchResults}
-            onSearchError={handleSearchError}
+            onSearch={handleSearch}   // <-- new prop
             placeholder="جستجو بر اساس نام ورزشکار، نام پدر یا شماره ملی..."
           />
         </div>
@@ -350,7 +365,6 @@ export default function Fees() {
                 </div>
               </div>
 
-              {/* Cabinet fields */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -380,7 +394,9 @@ export default function Fees() {
                     value={form.cabinate_num}
                     onChange={handleChange}
                     disabled={!form.has_cabinate}
-                    className={`w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition ${!form.has_cabinate ? "bg-gray-100 text-gray-500" : ""}`}
+                    className={`w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition ${
+                      !form.has_cabinate ? "bg-gray-100 text-gray-500" : ""
+                    }`}
                     min="1"
                     step="1"
                   />
@@ -468,7 +484,6 @@ export default function Fees() {
           </div>
         </div>
 
-        {/* Table */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12">
             <FaSpinner className="text-4xl text-[#0F3A76] animate-spin mb-4" />
@@ -575,6 +590,13 @@ export default function Fees() {
                           >
                             <FaTrash />
                           </button>
+                          <button
+                            onClick={() => setFeeModal({ isOpen: true, fee: f })}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                            title="چاپ کارت ورود"
+                          >
+                            <FaPrint />
+                          </button>
                           <AthletePaidFeesPDF athleteId={f.athleteId} />
                         </div>
                       </td>
@@ -587,22 +609,24 @@ export default function Fees() {
         )}
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {totalPages > 0 && (
           <div className="border-t border-gray-200">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
-              onPageChange={(page) => {
-                if (isSearching) {
-                  fetchFees(page, { fees: [], meta: { ...searchMeta, currentPage: page } });
-                } else {
-                  setCurrentPage(page);
-                }
-              }}
+              onPageChange={handlePageChange}
             />
           </div>
         )}
       </div>
+
+      {/* Print Modal */}
+      <PrintFeePass
+        isOpen={feeModal.isOpen}
+        onClose={() => setFeeModal({ isOpen: false, fee: null })}
+        fee={feeModal.fee}
+        autoPrint={false}
+      />
     </div>
   );
 }

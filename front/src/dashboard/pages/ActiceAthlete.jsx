@@ -13,42 +13,89 @@ const ActiveAthletes = () => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateMessage, setUpdateMessage] = useState("");
 
+  // ─── Search & Pagination ──────────────────────────────────
+  const [searchInput, setSearchInput] = useState("");        // what the user types
+  const [activeSearchTerm, setActiveSearchTerm] = useState(""); // what is actually used for fetching
+  const [isSearching, setIsSearching] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const limit = 10;
+  const [totalItems, setTotalItems] = useState(0);
+  const limit = 20;
 
-  const fetchActiveAthletes = useCallback(
-    async (page = currentPage) => {
+  // ─── Fetch data (active fees or search results) ──────────
+  const fetchData = useCallback(
+    async (page = currentPage, query = activeSearchTerm) => {
+      setLoading(true);
       try {
-        setLoading(true);
-        const res = await axios.get(
-          `${BASE_URL}/fees/active?page=${page}&limit=${limit}`
-        );
-        setFees(res.data.data);
-        setCurrentPage(res.data.currentPage);
-        setTotalPages(res.data.totalPages);
+        let res;
+        if (query.trim()) {
+          // Search active fees
+          res = await axios.get(`${BASE_URL}/fees/search/active`, {
+            params: { query: query.trim(), page, limit },
+          });
+          setFees(res.data.data);
+          setTotalPages(res.data.meta?.totalPages || 1);
+          setTotalItems(res.data.meta?.totalItems || 0);
+          setCurrentPage(res.data.meta?.currentPage || page);
+          setIsSearching(true);
+        } else {
+          // Normal active fees
+          res = await axios.get(`${BASE_URL}/fees/active?page=${page}&limit=${limit}`);
+          setFees(res.data.data);
+          setTotalPages(res.data.totalPages || 1);
+          setTotalItems(res.data.totalItems || 0);
+          setCurrentPage(res.data.currentPage || page);
+          setIsSearching(false);
+        }
         setUpdateMessage("");
       } catch (error) {
-        console.error("Error fetching active athletes:", error);
-        setUpdateMessage("بارگذاری ورزشکاران فعال با خطا مواجه شد.");
+        console.error("Error fetching data:", error);
+        setUpdateMessage(
+          error.response?.data?.message ||
+          (query.trim() ? "جستجو با خطا مواجه شد." : "بارگذاری ورزشکاران فعال با خطا مواجه شد.")
+        );
+        setFees([]);
+        setTotalPages(0);
+        setTotalItems(0);
       } finally {
         setLoading(false);
       }
     },
-    [currentPage]
+    [limit]
   );
 
+  // ─── Trigger fetch when page or active search term changes ──
   useEffect(() => {
-    fetchActiveAthletes(currentPage);
-  }, [currentPage, fetchActiveAthletes]);
+    fetchData(currentPage, activeSearchTerm);
+  }, [currentPage, activeSearchTerm, fetchData]);
 
+  // ─── Handle search submit ────────────────────────────────
+  const handleSearch = (e) => {
+    e.preventDefault();
+    const term = searchInput.trim();
+    if (term !== activeSearchTerm) {
+      setActiveSearchTerm(term);
+      setCurrentPage(1); // reset to first page for new search
+    }
+  };
+
+  // ─── Clear search ──────────────────────────────────────────
+  const handleClearSearch = () => {
+    setSearchInput("");
+    setActiveSearchTerm("");
+    setCurrentPage(1);
+    setIsSearching(false);
+  };
+
+  // ─── Update active status ─────────────────────────────────
   const handleUpdateActiveStatus = async () => {
     setIsUpdating(true);
     setUpdateMessage("");
     try {
       const res = await axios.get(`${BASE_URL}/fees/update-active`);
       setUpdateMessage(res.data.message || "وضعیت فعال‌سازی با موفقیت به‌روزرسانی شد!");
-      await fetchActiveAthletes(currentPage);
+      // Re‑fetch current data (preserve search if active)
+      await fetchData(currentPage, activeSearchTerm);
     } catch (error) {
       console.error("Error updating active status:", error);
       setUpdateMessage(
@@ -59,13 +106,14 @@ const ActiveAthletes = () => {
     }
   };
 
+  // ─── Render ────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6 space-y-8">
       {/* Main Card */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
         {/* Header */}
         <div className="bg-[#0F3A76] text-white p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-white/20 rounded-full">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -74,47 +122,72 @@ const ActiveAthletes = () => {
               </div>
               <div>
                 <h2 className="text-xl font-bold">ورزشکاران فعال</h2>
-                <p className="text-sm text-white/80">لیست ورزشکاران دارای اشتراک فعال امروز</p>
+                <p className="text-sm text-white/80">
+                  {isSearching
+                    ? `نتایج جستجو برای "${activeSearchTerm}"`
+                    : "لیست ورزشکاران دارای اشتراک فعال امروز"}
+                  {!loading && totalItems > 0 && ` (${totalItems} مورد)`}
+                </p>
               </div>
             </div>
 
-            <button
-              onClick={handleUpdateActiveStatus}
-              disabled={isUpdating}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                isUpdating
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-white/20 hover:bg-white/30 text-white"
-              }`}
-            >
-              {isUpdating ? (
-                <>
-                  <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
+            <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+              {/* Search Bar – only submits on Enter or button click */}
+              <form onSubmit={handleSearch} className="flex w-full sm:w-auto">
+                <input
+                  type="text"
+                  placeholder="جستجوی ورزشکار..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  className="px-4 py-2 rounded-r-lg border-2 border-white/30 bg-white/10 text-white placeholder-white/60 focus:outline-none focus:border-white w-full sm:w-48"
+                  style={{ direction: "rtl" }}
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-l-lg border-2 border-white/30 border-r-0 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
-                  در حال به‌روزرسانی...
-                </>
-              ) : (
-                "به‌روزرسانی وضعیت فعال"
+                </button>
+              </form>
+
+              {isSearching && (
+                <button
+                  onClick={handleClearSearch}
+                  className="text-sm bg-red-500/80 hover:bg-red-600 text-white px-3 py-1 rounded-full whitespace-nowrap"
+                >
+                  پاک کردن جستجو
+                </button>
               )}
-            </button>
+
+              <button
+                onClick={handleUpdateActiveStatus}
+                disabled={isUpdating}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+                  isUpdating
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-white/20 hover:bg-white/30 text-white"
+                }`}
+              >
+                {isUpdating ? (
+                  <>
+                    <svg
+                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    در حال به‌روزرسانی...
+                  </>
+                ) : (
+                  "به‌روزرسانی وضعیت فعال"
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -144,8 +217,12 @@ const ActiveAthletes = () => {
             <svg className="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
             </svg>
-            <p className="text-gray-500 text-lg">امروز هیچ ورزشکار فعالی وجود ندارد</p>
-            <p className="text-gray-400 text-sm mt-1">برای به‌روزرسانی وضعیت، دکمه بالا را بزنید</p>
+            <p className="text-gray-500 text-lg">
+              {isSearching ? "هیچ ورزشکاری با این مشخصات یافت نشد" : "امروز هیچ ورزشکار فعالی وجود ندارد"}
+            </p>
+            <p className="text-gray-400 text-sm mt-1">
+              {isSearching ? "لطفاً عبارت جستجو را تغییر دهید" : "برای به‌روزرسانی وضعیت، دکمه بالا را بزنید"}
+            </p>
           </div>
         ) : (
           <>
@@ -161,7 +238,6 @@ const ActiveAthletes = () => {
                     <th className="p-3 border-b font-semibold">مبلغ کل</th>
                     <th className="p-3 border-b font-semibold">دریافتی</th>
                     <th className="p-3 border-b font-semibold">باقیمانده</th>
-                    {/* ✅ NEW cabinet columns */}
                     <th className="p-3 border-b font-semibold">کابینت</th>
                     <th className="p-3 border-b font-semibold">شماره کابینت</th>
                     <th className="p-3 border-b font-semibold">عملیات</th>
@@ -169,16 +245,9 @@ const ActiveAthletes = () => {
                 </thead>
                 <tbody>
                   {fees.map((fee, index) => (
-                    <tr
-                      key={fee.id}
-                      className="hover:bg-gray-50 border-b last:border-0 transition-colors"
-                    >
-                      <td className="p-3 text-gray-600">
-                        {(currentPage - 1) * limit + index + 1}
-                      </td>
-                      <td className="p-3 font-medium text-gray-800">
-                        {fee.athlete?.full_name}
-                      </td>
+                    <tr key={fee.id} className="hover:bg-gray-50 border-b last:border-0 transition-colors">
+                      <td className="p-3 text-gray-600">{(currentPage - 1) * limit + index + 1}</td>
+                      <td className="p-3 font-medium text-gray-800">{fee.athlete?.full_name}</td>
                       <td className="p-3 text-gray-600">{fee.athlete?.nic_number}</td>
                       <td className="p-3">{fee.startDate}</td>
                       <td className="p-3">{fee.endDate}</td>
@@ -195,7 +264,6 @@ const ActiveAthletes = () => {
                           {parseFloat(fee.remained).toLocaleString()}
                         </span>
                       </td>
-                      {/* Cabinet info */}
                       <td className="p-3">
                         {fee.has_cabinate ? (
                           <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">

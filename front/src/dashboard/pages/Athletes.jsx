@@ -1,4 +1,7 @@
-import { useEffect, useState } from "react";
+
+
+// Athletes.jsx
+import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import Pagination from "../pagination/Pagination";
 import SearchBar from "../searching/athleteSearchBar";
@@ -13,12 +16,16 @@ export default function Athletes() {
   const [editingId, setEditingId] = useState(null);
   const [openForm, setOpenForm] = useState(false);
 
-  // Pagination state
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalAthletes, setTotalAthletes] = useState(0);
-  const [searchMode, setSearchMode] = useState(false);
-  const itemsPerPage = 10;
+  const itemsPerPage = 20; // or 1 for testing
+
+  // Search
+  const [searchQuery, setSearchQuery] = useState(""); // current search term
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
   // Form state
   const [form, setForm] = useState({
@@ -31,56 +38,82 @@ export default function Athletes() {
     photo: null,
   });
   const [submitting, setSubmitting] = useState(false);
-
   const [showImage, setShowImage] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
-  const [searchError, setSearchError] = useState("");
 
-  /* ================= FETCH ================= */
-  const fetchAthletes = async (page = 1) => {
-    setLoading(true);
-    setSearchMode(false);
-    try {
-      const res = await axios.get(`${BASE_URL}/athletes`, {
-        params: { page, limit: itemsPerPage },
-      });
-      if (res.data.data) {
-        setAthletes(res.data.data);
-        setTotalAthletes(res.data.totalItems);
-        setTotalPages(res.data.totalPages);
-        setCurrentPage(res.data.currentPage);
-      } else {
-        setAthletes(res.data);
-        setTotalAthletes(res.data.length);
-        setTotalPages(Math.ceil(res.data.length / itemsPerPage));
+  // ================= Unified fetch =================
+  const fetchData = useCallback(
+    async (page = 1, query = null) => {
+      setLoading(true);
+      try {
+        let res;
+        if (query && query.trim()) {
+          // Search mode
+          res = await axios.get(`${BASE_URL}/athletes/search`, {
+            params: { query: query.trim(), page, limit: itemsPerPage },
+          });
+          setAthletes(res.data.data);
+          setTotalAthletes(res.data.meta?.totalItems || 0);
+          setTotalPages(res.data.meta?.totalPages || 1);
+          setCurrentPage(res.data.meta?.currentPage || page);
+          setIsSearching(true);
+          setSearchQuery(query.trim());
+        } else {
+          // Normal mode
+          res = await axios.get(`${BASE_URL}/athletes`, {
+            params: { page, limit: itemsPerPage },
+          });
+          setAthletes(res.data.data);
+          setTotalAthletes(res.data.totalItems || 0);
+          setTotalPages(res.data.totalPages || 1);
+          setCurrentPage(res.data.currentPage || page);
+          setIsSearching(false);
+          setSearchQuery("");
+        }
+        setSearchError("");
+      } catch (err) {
+        console.error("Fetch error:", err);
+        setSearchError(err.response?.data?.message || "بارگذاری ناموفق بود");
+        setAthletes([]);
+        setTotalPages(0);
+        setTotalAthletes(0);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      alert("بارگذاری ورزشکاران ناموفق بود");
-    }
-    setLoading(false);
-  };
+    },
+    [itemsPerPage]
+  );
 
+  // Initial load
   useEffect(() => {
-    fetchAthletes(currentPage);
-  }, [currentPage]);
+    fetchData(1, null);
+  }, [fetchData]);
 
-  /* ================= SEARCH ================= */
-  const handleSearchResults = (results) => {
-    setSearchMode(true);
-    setAthletes(results);
-    setTotalAthletes(results.length);
-    setTotalPages(1);
-    setCurrentPage(1);
-    setSearchError("");
+  // ================= Search handler (called by SearchBar) =================
+  const handleSearch = (query) => {
+    if (query.trim() === "") {
+      // Clear search -> go to normal list
+      fetchData(1, null);
+    } else {
+      fetchData(1, query); // start search from page 1
+    }
   };
 
-  const handleSearchError = (error) => setSearchError(error);
+  // ================= Clear search =================
   const handleClearSearch = () => {
-    setSearchMode(false);
-    fetchAthletes(1);
+    fetchData(1, null);
   };
 
-  /* ================= FORM HANDLERS ================= */
+  // ================= Pagination handler =================
+  const handlePageChange = (page) => {
+    if (isSearching && searchQuery) {
+      fetchData(page, searchQuery);
+    } else {
+      fetchData(page, null);
+    }
+  };
+
+  // ================= Form handlers =================
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
@@ -105,14 +138,11 @@ export default function Athletes() {
   };
 
   const toggleForm = () => {
-    if (!openForm) {
-      // reset form when opening
-      resetForm();
-    }
+    if (!openForm) resetForm();
     setOpenForm(!openForm);
   };
 
-  /* ================= CREATE / UPDATE ================= */
+  // ================= Create / Update =================
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
@@ -128,14 +158,11 @@ export default function Athletes() {
 
     const hasFiles = form.document_pdf || form.photo;
     let dataToSend;
-
     if (hasFiles) {
       const formData = new FormData();
-      formData.append("full_name", form.full_name);
-      formData.append("father_name", form.father_name);
-      formData.append("permanent_residence", form.permanent_residence || "");
-      formData.append("current_residence", form.current_residence || "");
-      formData.append("nic_number", form.nic_number || "");
+      Object.keys(payload).forEach((key) => {
+        if (payload[key] !== null) formData.append(key, payload[key]);
+      });
       if (form.document_pdf) formData.append("document_pdf", form.document_pdf);
       if (form.photo) formData.append("photo", form.photo);
       dataToSend = formData;
@@ -153,10 +180,12 @@ export default function Athletes() {
       } else {
         await axios.post(`${BASE_URL}/athletes`, dataToSend, config);
       }
-
-      if (searchMode) fetchAthletes(1);
-      else fetchAthletes(currentPage);
-
+      // Refresh current view
+      if (isSearching && searchQuery) {
+        fetchData(currentPage, searchQuery);
+      } else {
+        fetchData(currentPage, null);
+      }
       resetForm();
       setOpenForm(false);
     } catch (err) {
@@ -166,7 +195,7 @@ export default function Athletes() {
     }
   };
 
-  /* ================= EDIT ================= */
+  // ================= Edit =================
   const handleEdit = (athlete) => {
     setForm({
       full_name: athlete.full_name || "",
@@ -181,23 +210,22 @@ export default function Athletes() {
     setOpenForm(true);
   };
 
-  /* ================= DELETE ================= */
+  // ================= Delete =================
   const handleDelete = async (id) => {
     if (!confirm("آیا مطمئن هستید که می‌خواهید این ورزشکار را حذف کنید؟")) return;
     try {
       await axios.delete(`${BASE_URL}/athletes/${id}`);
-      if (searchMode) fetchAthletes(1);
-      else fetchAthletes(currentPage);
+      if (isSearching && searchQuery) {
+        fetchData(currentPage, searchQuery);
+      } else {
+        fetchData(currentPage, null);
+      }
     } catch {
       alert("حذف ناموفق بود");
     }
   };
 
-  /* ================= PAGINATION ================= */
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-    if (!searchMode) fetchAthletes(page);
-  };
+  // --
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6 space-y-8" dir="rtl">
@@ -205,7 +233,6 @@ export default function Athletes() {
       <div className="text-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">مدیریت ورزشکاران</h1>
         <p className="text-gray-600">ثبت و مدیریت اطلاعات ورزشکاران</p>
-
         {editingId && (
           <div className="mt-4 p-4 bg-yellow-100 border border-yellow-400 rounded-xl max-w-md mx-auto">
             <div className="flex items-center justify-center gap-2 text-yellow-800">
@@ -226,18 +253,17 @@ export default function Athletes() {
         </button>
         <div className="w-full md:w-96">
           <SearchBar
-            onSearchResults={handleSearchResults}
-            onSearchError={handleSearchError}
+            onSearch={handleSearch}   // new prop
             placeholder="جستجوی ورزشکاران بر اساس نام، نام پدر، یا شماره تذکره..."
           />
         </div>
       </div>
 
-      {/* Search status */}
-      {searchMode && (
+      {/* Search status / error */}
+      {isSearching && (
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
           <span className="text-blue-600 font-medium">
-            نتایج جستجو: {athletes.length} ورزشکار پیدا شد
+            نتایج جستجو برای "{searchQuery}": {totalAthletes} ورزشکار پیدا شد
           </span>
           <button
             onClick={handleClearSearch}
@@ -247,13 +273,11 @@ export default function Athletes() {
           </button>
         </div>
       )}
-
       {searchError && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600">
           {searchError}
         </div>
       )}
-
       {/* Form Section */}
       {openForm && (
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
@@ -479,8 +503,7 @@ export default function Athletes() {
           </div>
         )}
 
-        {/* Pagination */}
-        {!searchMode && totalPages > 1 && (
+     {totalPages > 1 && (
           <div className="border-t border-gray-200">
             <Pagination
               currentPage={currentPage}
@@ -489,11 +512,6 @@ export default function Athletes() {
             />
           </div>
         )}
-        <div className="p-4 text-sm text-gray-500">
-          {searchMode
-            ? `نمایش ${athletes.length} نتیجه جستجو`
-            : `نمایش ${athletes.length} از ${totalAthletes} ورزشکار`}
-        </div>
       </div>
 
       {/* Image Modal */}
