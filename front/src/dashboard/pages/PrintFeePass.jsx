@@ -1,10 +1,10 @@
 import React, { useRef, useEffect } from "react";
 import jalaali from "jalaali-js";
 import VazirmatnTTF from "../../../public/ttf/Vazirmatn.js"; // adjust path
-
+const BASE_URL = import.meta.env.VITE_BASE_URL;
 const PrintFeePass = ({ isOpen, onClose, fee, autoPrint }) => {
   const hasPrinted = useRef(false);
-  const BRAND_NAME = import.meta.env.VITE_BRAND_NAME;  
+  const BRAND_NAME = import.meta.env.VITE_BRAND_NAME;
   useEffect(() => {
     if (autoPrint && isOpen && fee && !hasPrinted.current) {
       hasPrinted.current = true;
@@ -71,6 +71,7 @@ const PrintFeePass = ({ isOpen, onClose, fee, autoPrint }) => {
               </div>
 
               {/* Right: Pass Info */}
+
               <div className="text-left border-l-2 border-gray-300 pl-3 bg-gray-50 p-3 rounded-lg">
                 <p className="text-sm mb-1">
                   <strong className="text-gray-700">شماره کارت:</strong>
@@ -91,31 +92,51 @@ const PrintFeePass = ({ isOpen, onClose, fee, autoPrint }) => {
 
             {/* Main Content */}
             <div className="text-sm leading-8 mt-2 p-5 border-green-200 rounded-lg shadow-sm bg-green-50/50">
-              <div className="text-right bg-white p-6 rounded-lg border border-green-100 shadow-inner">
-                <p className="text-base">
-                  <span className="font-bold">ورزشکار محترم:</span>
-                  <span className="text-xl font-extrabold text-blue-800 mx-2">{athlete.full_name || "................"}</span>
-                </p>
+              <div className="flex flex-row gap-6 items-center">
+                {/* Photo - right side (since text is RTL) */}
+                <div className="flex-shrink-0">
+                  {athlete.photo ? (
+                    <img
+                      src={`${BASE_URL}/uploads/photos/${athlete.photo}`}
+                      alt={athlete.full_name || "عکس"}
+                      className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-4 border-white shadow-md">
+                      <FaUser className="text-gray-400 text-4xl" />
+                    </div>
+                  )}
+                </div>
 
-                <p className="text-base mt-2">
-                  <span className="font-bold">شماره ملی:</span>
-                  <span className="mx-2">{athlete.nic_number || "................"}</span>
-                </p>
+                {/* Data - left side */}
+                <div className="flex-1 text-right bg-white p-6 rounded-lg border border-green-100 shadow-inner">
+                  <p className="text-base">
+                    <span className="font-bold">ورزشکار محترم:</span>
+                    <span className="text-xl font-extrabold text-blue-800 mx-2">
+                      {athlete.full_name || "................"}
+                    </span>
+                  </p>
 
-                {/* 🔹 Cabinet information */}
-                <p className="text-base mt-2">
-                  <span className="font-bold">کابینت اختصاصی:</span>
-                  <span className={`mx-2 font-semibold ${hasCabinet ? "text-blue-700" : "text-red-500"}`}>
-                    {cabinetDisplay}
-                  </span>
-                </p>
+                  <p className="text-base mt-2">
+                    <span className="font-bold">شماره ملی:</span>
+                    <span className="mx-2">{athlete.nic_number || "................"}</span>
+                  </p>
 
-                <p className="text-base mt-4">
-                  <span className="font-bold">تاریخ اعتبار:</span>
-                  <span className="bg-green-100 px-4 py-2 rounded-full mx-2 text-green-800 font-semibold">
-                    از {startDate} تا {endDate}
-                  </span>
-                </p>
+                  {/* Cabinet information */}
+                  <p className="text-base mt-2">
+                    <span className="font-bold">کابینت اختصاصی:</span>
+                    <span className={`mx-2 font-semibold ${hasCabinet ? "text-blue-700" : "text-red-500"}`}>
+                      {cabinetDisplay}
+                    </span>
+                  </p>
+
+                  <p className="text-base mt-4">
+                    <span className="font-bold">تاریخ اعتبار:</span>
+                    <span className="bg-green-100 px-4 py-2 rounded-full mx-2 text-green-800 font-semibold">
+                      از {startDate} تا {endDate}
+                    </span>
+                  </p>
+                </div>
               </div>
             </div>
 
