@@ -14,8 +14,8 @@ const ActiveAthletes = () => {
   const [updateMessage, setUpdateMessage] = useState("");
 
   // ─── Search & Pagination ──────────────────────────────────
-  const [searchInput, setSearchInput] = useState("");        // what the user types
-  const [activeSearchTerm, setActiveSearchTerm] = useState(""); // what is actually used for fetching
+  const [searchInput, setSearchInput] = useState("");
+  const [activeSearchTerm, setActiveSearchTerm] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -29,7 +29,6 @@ const ActiveAthletes = () => {
       try {
         let res;
         if (query.trim()) {
-          // Search active fees
           res = await axios.get(`${BASE_URL}/fees/search/active`, {
             params: { query: query.trim(), page, limit },
           });
@@ -39,7 +38,6 @@ const ActiveAthletes = () => {
           setCurrentPage(res.data.meta?.currentPage || page);
           setIsSearching(true);
         } else {
-          // Normal active fees
           res = await axios.get(`${BASE_URL}/fees/active?page=${page}&limit=${limit}`);
           setFees(res.data.data);
           setTotalPages(res.data.totalPages || 1);
@@ -64,22 +62,20 @@ const ActiveAthletes = () => {
     [limit]
   );
 
-  // ─── Trigger fetch when page or active search term changes ──
   useEffect(() => {
     fetchData(currentPage, activeSearchTerm);
   }, [currentPage, activeSearchTerm, fetchData]);
 
-  // ─── Handle search submit ────────────────────────────────
+  // ─── Handle search ────────────────────────────────────────
   const handleSearch = (e) => {
     e.preventDefault();
     const term = searchInput.trim();
     if (term !== activeSearchTerm) {
       setActiveSearchTerm(term);
-      setCurrentPage(1); // reset to first page for new search
+      setCurrentPage(1);
     }
   };
 
-  // ─── Clear search ──────────────────────────────────────────
   const handleClearSearch = () => {
     setSearchInput("");
     setActiveSearchTerm("");
@@ -94,7 +90,6 @@ const ActiveAthletes = () => {
     try {
       const res = await axios.get(`${BASE_URL}/fees/update-active`);
       setUpdateMessage(res.data.message || "وضعیت فعال‌سازی با موفقیت به‌روزرسانی شد!");
-      // Re‑fetch current data (preserve search if active)
       await fetchData(currentPage, activeSearchTerm);
     } catch (error) {
       console.error("Error updating active status:", error);
@@ -106,7 +101,17 @@ const ActiveAthletes = () => {
     }
   };
 
-  // ─── Render ────────────────────────────────────────────────
+  // ─── Open image preview ────────────────────────────────────
+  const handleViewPhoto = (athlete) => {
+    if (athlete?.photo) {
+      setImageUrl(`${BASE_URL}/uploads/photos/${athlete.photo}`);
+      setShowImage(true);
+    } else {
+      alert("این ورزشکار عکسی ندارد");
+    }
+  };
+
+  // ─── Render ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6 space-y-8">
       {/* Main Card */}
@@ -132,7 +137,6 @@ const ActiveAthletes = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
-              {/* Search Bar – only submits on Enter or button click */}
               <form onSubmit={handleSearch} className="flex w-full sm:w-auto">
                 <input
                   type="text"
@@ -231,6 +235,7 @@ const ActiveAthletes = () => {
                 <thead className="bg-[#0F3A76] text-white">
                   <tr>
                     <th className="p-3 border-b font-semibold">#</th>
+                    <th className="p-3 border-b font-semibold">عکس</th> {/* New column */}
                     <th className="p-3 border-b font-semibold">نام</th>
                     <th className="p-3 border-b font-semibold">شماره ملی</th>
                     <th className="p-3 border-b font-semibold">تاریخ شروع</th>
@@ -244,45 +249,69 @@ const ActiveAthletes = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {fees.map((fee, index) => (
-                    <tr key={fee.id} className="hover:bg-gray-50 border-b last:border-0 transition-colors">
-                      <td className="p-3 text-gray-600">{(currentPage - 1) * limit + index + 1}</td>
-                      <td className="p-3 font-medium text-gray-800">{fee.athlete?.full_name}</td>
-                      <td className="p-3 text-gray-600">{fee.athlete?.nic_number}</td>
-                      <td className="p-3">{fee.startDate}</td>
-                      <td className="p-3">{fee.endDate}</td>
-                      <td className="p-3">
-                        <span className="text-purple-700 font-bold">
-                          {parseFloat(fee.total).toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="p-3 text-green-600 font-medium">
-                        {parseFloat(fee.received).toLocaleString()}
-                      </td>
-                      <td className="p-3">
-                        <span className={`font-semibold ${fee.remained > 0 ? "text-red-600" : "text-green-600"}`}>
-                          {parseFloat(fee.remained).toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        {fee.has_cabinate ? (
-                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                            دارد
+                  {fees.map((fee, index) => {
+                    const photoUrl = fee.athlete?.photo
+                      ? `${BASE_URL}/uploads/photos/${fee.athlete.photo}`
+                      : null;
+                    return (
+                      <tr key={fee.id} className="hover:bg-gray-50 border-b last:border-0 transition-colors">
+                        <td className="p-3 text-gray-600">{(currentPage - 1) * limit + index + 1}</td>
+                        <td className="p-3">
+                          {photoUrl ? (
+                            <img
+                              src={photoUrl}
+                              alt={fee.athlete?.full_name}
+                              className="w-10 h-10 rounded-full object-cover cursor-pointer border-2 border-gray-200 hover:border-[#0F3A76] transition"
+                              onClick={() => handleViewPhoto(fee.athlete)}
+                            />
+                          ) : (
+                            <div
+                              className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center cursor-pointer border-2 border-gray-200 hover:border-[#0F3A76] transition"
+                              onClick={() => handleViewPhoto(fee.athlete)}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3 font-medium text-gray-800">{fee.athlete?.full_name}</td>
+                        <td className="p-3 text-gray-600">{fee.athlete?.nic_number}</td>
+                        <td className="p-3">{fee.startDate}</td>
+                        <td className="p-3">{fee.endDate}</td>
+                        <td className="p-3">
+                          <span className="text-purple-700 font-bold">
+                            {parseFloat(fee.total).toLocaleString()}
                           </span>
-                        ) : (
-                          <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs font-medium">
-                            ندارد
+                        </td>
+                        <td className="p-3 text-green-600 font-medium">
+                          {parseFloat(fee.received).toLocaleString()}
+                        </td>
+                        <td className="p-3">
+                          <span className={`font-semibold ${fee.remained > 0 ? "text-red-600" : "text-green-600"}`}>
+                            {parseFloat(fee.remained).toLocaleString()}
                           </span>
-                        )}
-                      </td>
-                      <td className="p-3 text-gray-600">
-                        {fee.has_cabinate ? fee.cabinate_num || "—" : "—"}
-                      </td>
-                      <td className="p-3">
-                        <AthletePaidFeesPDF athleteId={fee.athleteId} />
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="p-3">
+                          {fee.has_cabinate ? (
+                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                              دارد
+                            </span>
+                          ) : (
+                            <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs font-medium">
+                              ندارد
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-gray-600">
+                          {fee.has_cabinate ? fee.cabinate_num || "—" : "—"}
+                        </td>
+                        <td className="p-3">
+                          <AthletePaidFeesPDF athleteId={fee.athleteId} />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -301,12 +330,12 @@ const ActiveAthletes = () => {
         )}
       </div>
 
-      {/* Image Modal (if needed) */}
+      {/* Image Modal */}
       {showImage && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
           <div className="absolute inset-0" onClick={() => setShowImage(false)} />
           <div className="relative z-10 bg-white rounded-lg shadow-xl w-[420px] h-[360px] flex items-center justify-center">
-            <img src={imageUrl} alt="پیش‌نمایش" className="max-w-full max-h-full object-contain" />
+            <img src={imageUrl} alt="پیش‌نمایش عکس" className="max-w-full max-h-full object-contain" />
             <button
               onClick={() => setShowImage(false)}
               className="absolute -top-3 -right-3 bg-red-600 text-white w-8 h-8 rounded-full flex items-center justify-center shadow"

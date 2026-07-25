@@ -1,5 +1,7 @@
 import { Athletes } from "../Models/Athletes.js";
 import { Op } from "sequelize";
+import fs from "fs";
+import path from "path";
 
 // ─── SEARCH (with pagination) ──────────────────────────────
 export const searchAthletes = async (req, res) => {
@@ -150,7 +152,6 @@ export const getAthleteById = async (req, res) => {
     });
   }
 };
-
 // ─── UPDATE ──────────────────────────────────────────────────
 export const updateAthlete = async (req, res) => {
   try {
@@ -159,36 +160,35 @@ export const updateAthlete = async (req, res) => {
       return res.status(404).json({ message: "Athlete not found" });
     }
 
-    // Handle file updates (optional)
     const documentFile = req.files?.document_pdf?.[0];
     const photoFile = req.files?.photo?.[0];
 
-    // Build update object from req.body, but only include provided fields
+    // Delete old files if new ones are uploaded
+    if (photoFile && athlete.photo) {
+      const oldPhotoPath = path.join("uploads", "photos", athlete.photo);
+      if (fs.existsSync(oldPhotoPath)) fs.unlinkSync(oldPhotoPath);
+    }
+    if (documentFile && athlete.document_pdf) {
+      const oldDocPath = path.join("uploads", "documents", athlete.document_pdf);
+      if (fs.existsSync(oldDocPath)) fs.unlinkSync(oldDocPath);
+    }
+
     const updateData = {};
-    const allowedFields = [
-      "full_name",
-      "father_name",
-      "permanent_residence",
-      "current_residence",
-      "nic_number",
-    ];
+    const allowedFields = ["full_name", "father_name", "permanent_residence", "current_residence", "nic_number"];
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
-        updateData[field] = req.body[field] || null; // if empty string, set to null
+        updateData[field] = req.body[field] || null;
       }
     });
 
     if (documentFile) updateData.document_pdf = documentFile.filename;
     if (photoFile) updateData.photo = photoFile.filename;
 
-    // If no fields to update, return early
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ message: "No fields provided to update" });
     }
 
     await athlete.update(updateData);
-
-    // Fetch the updated athlete
     const updatedAthlete = await Athletes.findByPk(req.params.id);
 
     res.status(200).json({
@@ -197,9 +197,7 @@ export const updateAthlete = async (req, res) => {
     });
   } catch (error) {
     if (error.name === "SequelizeUniqueConstraintError") {
-      return res.status(409).json({
-        message: "NIC number already exists",
-      });
+      return res.status(409).json({ message: "NIC number already exists" });
     }
     res.status(500).json({
       message: "Error updating athlete",
@@ -215,6 +213,17 @@ export const deleteAthlete = async (req, res) => {
     if (!athlete) {
       return res.status(404).json({ message: "Athlete not found" });
     }
+
+    // Delete files from disk
+    if (athlete.photo) {
+      const photoPath = path.join("uploads", "photos", athlete.photo);
+      if (fs.existsSync(photoPath)) fs.unlinkSync(photoPath);
+    }
+    if (athlete.document_pdf) {
+      const docPath = path.join("uploads", "documents", athlete.document_pdf);
+      if (fs.existsSync(docPath)) fs.unlinkSync(docPath);
+    }
+
     await athlete.destroy();
     res.status(200).json({ message: "Athlete deleted successfully" });
   } catch (error) {

@@ -3,19 +3,19 @@ import Dashboard from "./pages/dashboard";
 // import S_Transaction from "./pages/RentManager";
 import Report from "./pages/reports";
 import AddUser from "./pages/AddUser";
-import Athletes from "./pages/Athletes";
-import Fees from "./pages/Fees";
+import Fees from "./pages/fee/Fees.jsx";
 import ActiveAthletes from "./pages/ActiceAthlete";
 import ExpenseManager from "./pages/expense/ExpenseManages.jsx";
 import StaffManager from "./pages/StaffManager.jsx";
 import SalaryManagement from './pages/SalaryManagement.jsx'
+import AthleteManager from "./pages/Athlete/AthleteManager.jsx";
 const MainContent = ({ activeComponent }) => {
   const renderContent = () => {
     switch (activeComponent) {
       case "dashboard":
         return <Dashboard />;
       case "Athletes":
-        return <Athletes />;
+        return <AthleteManager />;
       case "Fees":
         return <Fees />;
       case "SalaryManagement":

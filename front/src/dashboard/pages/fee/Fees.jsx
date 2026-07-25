@@ -1,12 +1,20 @@
 // src/components/fees/Fees.jsx
 import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
-import Pagination from "../pagination/Pagination";
-import FeesSearchBar from "../searching/feeSearchBar";
-import AthletePaidFeesPDF from "./report/AthletePaidFeesPDF";
-import FeesReport from "./FeesReport";
-import { FaEdit, FaTrash, FaCheck, FaSpinner, FaPrint } from "react-icons/fa";
-import PrintFeePass from "./PrintFeePass";
+import Pagination from "../../pagination/Pagination";
+import FeesSearchBar from "../../searching/feeSearchBar";
+import AthletePaidFeesPDF from "../report/AthletePaidFeesPDF";
+import FeesReport from "../FeesReport";
+import FeeForm from "./FeeForm";
+import PrintFeePass from "../PrintFeePass";
+import {
+  FaEdit,
+  FaTrash,
+  FaSpinner,
+  FaPrint,
+  FaEye,
+  FaPlus,
+} from "react-icons/fa";
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
@@ -27,6 +35,11 @@ export default function Fees() {
   const limit = 20;
   const [feeModal, setFeeModal] = useState({ isOpen: false, fee: null });
 
+  // ---------- Photo preview modal ----------
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState("");
+
+  // ---------- Form state ----------
   const [form, setForm] = useState({
     startDate: "",
     endDate: "",
@@ -36,15 +49,39 @@ export default function Fees() {
     cabinate_num: "",
     has_cabinate: false,
   });
+  const [athletePhoto, setAthletePhoto] = useState(null);
 
-  // ---------- Unified fetch function ----------
+  // Update photo preview when athleteId changes
+  useEffect(() => {
+    if (form.athleteId) {
+      const athlete = athletes.find((a) => a.id === form.athleteId);
+      if (athlete && athlete.photo) {
+        setAthletePhoto(`${BASE_URL}/uploads/photos/${athlete.photo}`);
+      } else {
+        setAthletePhoto(null);
+      }
+    } else {
+      setAthletePhoto(null);
+    }
+  }, [form.athleteId, athletes]);
+
+  // ---------- Fetch athletes ----------
+  const fetchAthletes = useCallback(async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/athletes`);
+      setAthletes(res.data.data);
+    } catch (err) {
+      alert("بارگذاری ورزشکاران ناموفق بود: " + (err.response?.data?.message || err.message));
+    }
+  }, []);
+
+  // ---------- Fetch fees ----------
   const fetchData = useCallback(
     async (page = 1, query = null) => {
       setLoading(true);
       try {
         let res;
         if (query && query.trim()) {
-          // Search mode
           res = await axios.get(`${BASE_URL}/fees/search`, {
             params: { query: query.trim(), page, limit },
           });
@@ -56,7 +93,6 @@ export default function Fees() {
           setSearchMeta(res.data.meta);
           setSearchQuery(query.trim());
         } else {
-          // Normal mode
           res = await axios.get(`${BASE_URL}/fees?page=${page}&limit=${limit}`);
           setFees(res.data.data);
           setTotalPages(res.data.totalPages || 1);
@@ -87,27 +123,16 @@ export default function Fees() {
     }
   }, [currentPage, fetchData, isSearching, searchQuery]);
 
-  // ---------- Search handler (called by SearchBar) ----------
+  // ---------- Search handlers ----------
   const handleSearch = (query) => {
-    if (query.trim() === "") {
-      // Clear search → go to normal list, page 1
-      fetchData(1, null);
-    } else {
-      // New search → reset to page 1 with the query
-      fetchData(1, query);
-    }
+    if (query.trim() === "") fetchData(1, null);
+    else fetchData(1, query);
   };
 
-  // ---------- Clear search (manual button) ----------
-  const handleClearSearch = () => {
-    fetchData(1, null);
-  };
+  const handleClearSearch = () => fetchData(1, null);
 
-  // ---------- Pagination handler ----------
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-    // useEffect will automatically fetch the new page with the current query
-  };
+  // ---------- Pagination ----------
+  const handlePageChange = (page) => setCurrentPage(page);
 
   // ---------- Form handlers ----------
   const handleChange = (e) => {
@@ -129,22 +154,37 @@ export default function Fees() {
       has_cabinate: false,
     });
     setEditingId(null);
+    setAthletePhoto(null);
   };
 
-  const toggleForm = useCallback(async () => {
-    if (!openForm) {
-      try {
-        const res = await axios.get(`${BASE_URL}/athletes`);
-        setAthletes(res.data.data);
-      } catch (err) {
-        alert("بارگذاری ورزشکاران ناموفق بود: " + (err.response?.data?.message || err.message));
+  const openFormHandler = useCallback(
+    async (fee = null) => {
+      await fetchAthletes();
+      if (fee) {
+        setForm({
+          startDate: fee.startDate,
+          endDate: fee.endDate,
+          total: fee.total,
+          received: fee.received,
+          athleteId: fee.athleteId,
+          cabinate_num: fee.cabinate_num || "",
+          has_cabinate: fee.has_cabinate || false,
+        });
+        setEditingId(fee.id);
+      } else {
+        resetForm();
       }
-    }
-    setOpenForm((prev) => !prev);
-    if (openForm) resetForm();
-  }, [openForm]);
+      setOpenForm(true);
+    },
+    [fetchAthletes]
+  );
 
-  // ---------- Submit (Create / Update) ----------
+  const closeForm = () => {
+    setOpenForm(false);
+    resetForm();
+  };
+
+  // ---------- Submit ----------
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
@@ -161,14 +201,9 @@ export default function Fees() {
       } else {
         await axios.post(`${BASE_URL}/fees`, payload);
       }
-      // Refresh current view (preserving search if any)
-      if (isSearching && searchQuery) {
-        fetchData(currentPage, searchQuery);
-      } else {
-        fetchData(currentPage);
-      }
-      resetForm();
-      setOpenForm(false);
+      if (isSearching && searchQuery) fetchData(currentPage, searchQuery);
+      else fetchData(currentPage);
+      closeForm();
     } catch (err) {
       alert(err.response?.data?.message || "عملیات ناموفق بود");
     } finally {
@@ -177,32 +212,27 @@ export default function Fees() {
   };
 
   // ---------- Edit ----------
-  const handleEdit = (fee) => {
-    setForm({
-      startDate: fee.startDate,
-      endDate: fee.endDate,
-      total: fee.total,
-      received: fee.received,
-      athleteId: fee.athleteId,
-      cabinate_num: fee.cabinate_num || "",
-      has_cabinate: fee.has_cabinate || false,
-    });
-    setEditingId(fee.id);
-    setOpenForm(true);
-  };
+  const handleEdit = (fee) => openFormHandler(fee);
 
   // ---------- Delete ----------
   const handleDelete = async (id) => {
     if (!confirm("آیا از حذف این فیس مطمئن هستید؟")) return;
     try {
       await axios.delete(`${BASE_URL}/fees/${id}`);
-      if (isSearching && searchQuery) {
-        fetchData(currentPage, searchQuery);
-      } else {
-        fetchData(currentPage);
-      }
+      if (isSearching && searchQuery) fetchData(currentPage, searchQuery);
+      else fetchData(currentPage);
     } catch (err) {
       alert("حذف ناموفق بود: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  // ---------- Show photo ----------
+  const handleViewPhoto = (athlete) => {
+    if (athlete?.photo) {
+      setPhotoUrl(`${BASE_URL}/uploads/photos/${athlete.photo}`);
+      setShowPhotoModal(true);
+    } else {
+      alert("این ورزشکار عکسی ندارد");
     }
   };
 
@@ -223,23 +253,23 @@ export default function Fees() {
         )}
       </div>
 
-      {/* Toggle Form Button + Search Bar */}
+      {/* Toolbar */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <button
-          onClick={toggleForm}
+          onClick={() => openFormHandler(null)}
           className="px-6 py-3 bg-[#0F3A76] text-white rounded-xl hover:bg-[#0A2D5E] transition font-medium shadow-md flex items-center gap-2"
         >
-          {openForm ? "بستن فرم" : "افزودن فیس جدید"}
+          {openForm ? "بستن فرم" : <><FaPlus /> افزودن فیس جدید</>}
         </button>
         <div className="w-full md:w-96">
           <FeesSearchBar
-            onSearch={handleSearch}   // <-- new prop
+            onSearch={handleSearch}
             placeholder="جستجو بر اساس نام ورزشکار، نام پدر یا شماره ملی..."
           />
         </div>
       </div>
 
-      {/* Search status banner */}
+      {/* Search status */}
       {isSearching && (
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -259,202 +289,21 @@ export default function Fees() {
         </div>
       )}
 
-      {/* Form Section */}
+      {/* Form */}
       {openForm && (
-        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-          <div className="bg-[#0F3A76] text-white p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-full">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0-4.5A5.5 5.5 0 016.5 10.5 5.5 5.5 0 0012 16a5.5 5.5 0 005.5-5.5A5.5 5.5 0 0012 5.5z" />
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">
-                  {editingId ? "ویرایش فیس" : "افزودن فیس جدید"}
-                </h2>
-                <p className="text-sm text-white/80">
-                  {editingId ? "ویرایش اطلاعات فیس" : "ثبت اطلاعات فیس جدید"}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-6">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <span className="text-red-500">*</span> ورزشکار
-                </label>
-                <select
-                  name="athleteId"
-                  value={form.athleteId}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition"
-                  required
-                >
-                  <option value="">انتخاب ورزشکار</option>
-                  {athletes.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.full_name} ({a.nic_number})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <span className="text-red-500">*</span> تاریخ شروع
-                  </label>
-                  <input
-                    type="date"
-                    name="startDate"
-                    value={form.startDate}
-                    onChange={handleChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <span className="text-red-500">*</span> تاریخ پایان
-                  </label>
-                  <input
-                    type="date"
-                    name="endDate"
-                    value={form.endDate}
-                    onChange={handleChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <span className="text-red-500">*</span> مبلغ کل (افغانی)
-                  </label>
-                  <input
-                    type="number"
-                    name="total"
-                    placeholder="۰.۰۰"
-                    value={form.total}
-                    onChange={handleChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition"
-                    required
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    مبلغ دریافتی (افغانی)
-                  </label>
-                  <input
-                    type="number"
-                    name="received"
-                    placeholder="۰.۰۰"
-                    value={form.received}
-                    onChange={handleChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    کابینت دارد؟
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      name="has_cabinate"
-                      checked={form.has_cabinate}
-                      onChange={handleChange}
-                      className="w-5 h-5 text-[#0F3A76] border-gray-300 rounded focus:ring-[#0F3A76]"
-                    />
-                    <span className="text-sm text-gray-600">
-                      {form.has_cabinate ? "بله" : "خیر"}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    شماره کابینت
-                  </label>
-                  <input
-                    type="number"
-                    name="cabinate_num"
-                    placeholder="مثلاً ۱۰۱"
-                    value={form.cabinate_num}
-                    onChange={handleChange}
-                    disabled={!form.has_cabinate}
-                    className={`w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition ${
-                      !form.has_cabinate ? "bg-gray-100 text-gray-500" : ""
-                    }`}
-                    min="1"
-                    step="1"
-                  />
-                </div>
-              </div>
-
-              {form.total && form.received && (
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">باقیمانده:</span>
-                    <span className={`font-semibold ${form.total - form.received > 0 ? "text-red-600" : "text-green-600"}`}>
-                      {(form.total - form.received).toLocaleString()} افغانی
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                {editingId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      resetForm();
-                      setOpenForm(false);
-                    }}
-                    className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
-                  >
-                    لغو ویرایش
-                  </button>
-                )}
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className={`px-6 py-3 rounded-lg font-medium shadow-md transition flex items-center gap-2 ${
-                    submitting
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-[#0F3A76] text-white hover:bg-[#0A2D5E]"
-                  }`}
-                >
-                  {submitting ? (
-                    <>
-                      <FaSpinner className="animate-spin h-5 w-5" />
-                      در حال ذخیره...
-                    </>
-                  ) : (
-                    <>
-                      <FaCheck />
-                      {editingId ? "ذخیره تغییرات" : "ثبت فیس"}
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <FeeForm
+          form={form}
+          onChange={handleChange}
+          onSubmit={handleSubmit}
+          editingId={editingId}
+          athletes={athletes}
+          athletePhoto={athletePhoto}
+          onCancel={closeForm}
+          submitting={submitting}
+        />
       )}
 
-      {/* Table Section */}
+      {/* Table */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
         <div className="bg-[#0F3A76] text-white p-4">
           <div className="flex items-center justify-between">
@@ -526,9 +375,10 @@ export default function Fees() {
                         <div className="flex items-center gap-2 justify-center">
                           {f.athlete?.photo && (
                             <img
-                              src={`${BASE_URL}/uploads/${f.athlete.photo}`}
+                              src={`${BASE_URL}/uploads/photos/${f.athlete.photo}`}
                               alt={f.athlete?.full_name}
-                              className="w-8 h-8 rounded-full object-cover border"
+                              className="w-8 h-8 rounded-full object-cover border cursor-pointer"
+                              onClick={() => handleViewPhoto(f.athlete)}
                               onError={(e) => (e.target.style.display = "none")}
                             />
                           )}
@@ -563,19 +413,26 @@ export default function Fees() {
                       <td className="p-3">{f.has_cabinate ? f.cabinate_num || "—" : "—"}</td>
                       <td className="p-3">
                         <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            f.remained === 0
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${f.remained === 0
                               ? "bg-green-100 text-green-800"
                               : f.remained === f.total
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
+                                ? "bg-red-100 text-red-800"
+                                : "bg-yellow-100 text-yellow-800"
+                            }`}
                         >
                           {f.remained === 0 ? "پرداخت شده" : f.remained === f.total ? "پرداخت نشده" : "بخشی"}
                         </span>
                       </td>
                       <td className="p-3">
                         <div className="flex items-center justify-center gap-2">
+                          {/* View Photo button */}
+                          <button
+                            onClick={() => handleViewPhoto(f.athlete)}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                            title="مشاهده عکس"
+                          >
+                            <FaEye />
+                          </button>
                           <button
                             onClick={() => handleEdit(f)}
                             className="p-2 text-[#0F3A76] hover:bg-blue-50 rounded-lg transition"
@@ -592,7 +449,7 @@ export default function Fees() {
                           </button>
                           <button
                             onClick={() => setFeeModal({ isOpen: true, fee: f })}
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                             title="چاپ کارت ورود"
                           >
                             <FaPrint />
@@ -608,7 +465,6 @@ export default function Fees() {
           </div>
         )}
 
-        {/* Pagination */}
         {totalPages > 0 && (
           <div className="border-t border-gray-200">
             <Pagination
@@ -627,6 +483,31 @@ export default function Fees() {
         fee={feeModal.fee}
         autoPrint={false}
       />
+
+      {/* Photo Preview Modal */}
+      {showPhotoModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center"
+          onClick={() => setShowPhotoModal(false)}
+        >
+          <div
+            className="relative bg-white rounded-lg shadow-xl w-[420px] h-[360px] flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={photoUrl}
+              alt="پیش‌نمایش عکس ورزشکار"
+              className="max-w-full max-h-full object-contain p-4"
+            />
+            <button
+              onClick={() => setShowPhotoModal(false)}
+              className="absolute -top-3 -right-3 bg-red-600 text-white w-8 h-8 rounded-full flex items-center justify-center shadow hover:bg-red-700 transition"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

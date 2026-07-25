@@ -276,7 +276,7 @@ export const getAllFees = async (req, res) => {
         {
           model: Athletes,
           as: "athlete",
-          attributes: ["id", "full_name", "nic_number"],
+          attributes: ["id", "full_name", "nic_number","photo"],
         },
       ],
       order: [["createdAt", "DESC"]],
