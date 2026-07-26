@@ -3,6 +3,7 @@ import axios from "axios";
 import { FaEdit, FaTrash, FaCheck, FaTimes, FaSpinner } from "react-icons/fa";
 import { useSelector } from "react-redux";
 import SalaryDateDownload from "./report/salaryDateDownload";
+import Pagination from "../pagination/Pagination"; // <-- imported Pagination
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
@@ -33,6 +34,12 @@ const SalaryManagement = () => {
     initial: true,
   });
 
+  // ─── Pagination state ──────────────────────────────────────
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const limit = 20;
+
   // ─── Fetch Data ────────────────────────────────────────────
   const fetchStaff = async () => {
     setLoading((prev) => ({ ...prev, staffs: true }));
@@ -47,25 +54,41 @@ const SalaryManagement = () => {
     }
   };
 
-  const fetchAttendance = async () => {
+  const fetchAttendance = async (page = currentPage) => {
     setLoading((prev) => ({ ...prev, records: true }));
     try {
-      const res = await axios.get(`${BASE_URL}/attendance`);
-      setRecords(res.data || []);
+      const res = await axios.get(
+        `${BASE_URL}/attendance?page=${page}&limit=${limit}`
+      );
+      setRecords(res.data.data || []);
+      setTotalPages(res.data.totalPages || 1);
+      setTotalItems(res.data.totalItems || 0);
+      setCurrentPage(res.data.currentPage || page);
     } catch (error) {
       console.error("Error fetching attendance:", error);
       setRecords([]);
+      setTotalPages(0);
+      setTotalItems(0);
     } finally {
       setLoading((prev) => ({ ...prev, records: false, initial: false }));
     }
   };
 
+  // ─── Initial load ──────────────────────────────────────────
   useEffect(() => {
-    const fetchData = async () => {
-      await Promise.all([fetchStaff(), fetchAttendance()]);
+    const loadData = async () => {
+      await fetchStaff();
+      await fetchAttendance(1);
     };
-    fetchData();
+    loadData();
   }, []);
+
+  // ─── Re‑fetch when page changes ────────────────────────────
+  useEffect(() => {
+    if (!loading.initial) {
+      fetchAttendance(currentPage);
+    }
+  }, [currentPage]);
 
   // ─── Form Handlers ────────────────────────────────────────
   const handleAttendanceChange = (day, field, value) => {
@@ -97,7 +120,8 @@ const SalaryManagement = () => {
         await axios.post(`${BASE_URL}/attendance`, form);
       }
 
-      await fetchAttendance();
+      // Refetch current page after save
+      await fetchAttendance(currentPage);
       setForm(initialForm);
       setEditingId(null);
       setShowForm(false);
@@ -122,10 +146,14 @@ const SalaryManagement = () => {
     if (!confirm("آیا از حذف این رکورد اطمینان دارید؟")) return;
     try {
       await axios.delete(`${BASE_URL}/attendance/${id}`);
-      await fetchAttendance();
+      await fetchAttendance(currentPage);
     } catch (error) {
       console.error("Error deleting record:", error);
     }
+  };
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
   };
 
   const daysOrder = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"];
@@ -142,7 +170,9 @@ const SalaryManagement = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex flex-col items-center justify-center p-6">
         <FaSpinner className="text-5xl text-[#0F3A76] animate-spin mb-6" />
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">در حال بارگذاری اطلاعات حضور و غیاب</h2>
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">
+          در حال بارگذاری اطلاعات حضور و غیاب
+        </h2>
         <p className="text-gray-600">لطفاً چند لحظه صبر کنید...</p>
       </div>
     );
@@ -152,7 +182,9 @@ const SalaryManagement = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-6 space-y-8">
       {/* Header */}
       <div className="text-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">مدیریت حضور و غیاب</h1>
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+          مدیریت حضور و غیاب
+        </h1>
         <p className="text-gray-600">ثبت و مدیریت حضور و حقوق کارمندان</p>
 
         {editingId && (
@@ -233,7 +265,9 @@ const SalaryManagement = () => {
                 {loading.staffs ? (
                   <div className="flex items-center justify-center h-12 bg-gray-100 rounded-lg">
                     <FaSpinner className="animate-spin text-gray-400 mr-2" />
-                    <span className="text-gray-500">در حال بارگذاری لیست کارمندان...</span>
+                    <span className="text-gray-500">
+                      در حال بارگذاری لیست کارمندان...
+                    </span>
                   </div>
                 ) : (
                   <select
@@ -257,9 +291,14 @@ const SalaryManagement = () => {
               {/* Attendance Days Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {daysOrder.map((day) => (
-                  <div key={day} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div
+                    key={day}
+                    className="bg-gray-50 p-4 rounded-lg border border-gray-200"
+                  >
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-gray-700">{persianDays[day]}</h3>
+                      <h3 className="font-semibold text-gray-700">
+                        {persianDays[day]}
+                      </h3>
                       <div className="flex items-center gap-2">
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
@@ -267,18 +306,26 @@ const SalaryManagement = () => {
                             className="hidden peer"
                             checked={form.attendance[day].attendance}
                             onChange={(e) =>
-                              handleAttendanceChange(day, "attendance", e.target.checked)
+                              handleAttendanceChange(
+                                day,
+                                "attendance",
+                                e.target.checked
+                              )
                             }
                             disabled={submitting}
                           />
                           <div
                             className={`w-10 h-6 flex items-center rounded-full p-1 transition-colors ${
-                              form.attendance[day].attendance ? "bg-green-500" : "bg-gray-300"
+                              form.attendance[day].attendance
+                                ? "bg-green-500"
+                                : "bg-gray-300"
                             } ${submitting ? "opacity-50" : ""}`}
                           >
                             <div
                               className={`bg-white w-4 h-4 rounded-full shadow transform transition-transform ${
-                                form.attendance[day].attendance ? "translate-x-4" : ""
+                                form.attendance[day].attendance
+                                  ? "translate-x-4"
+                                  : ""
                               }`}
                             />
                           </div>
@@ -305,7 +352,11 @@ const SalaryManagement = () => {
                           className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition disabled:opacity-50"
                           value={form.attendance[day].overtime}
                           onChange={(e) =>
-                            handleAttendanceChange(day, "overtime", e.target.value)
+                            handleAttendanceChange(
+                              day,
+                              "overtime",
+                              e.target.value
+                            )
                           }
                           disabled={!form.attendance[day].attendance || submitting}
                         />
@@ -324,7 +375,9 @@ const SalaryManagement = () => {
                   <div className="flex flex-col md:flex-row gap-4 flex-1">
                     {/* Total Display */}
                     <div className="bg-gray-100 p-4 rounded-lg flex flex-col justify-center items-start">
-                      <label className="text-sm font-medium text-gray-700 mb-1">مجموع کل</label>
+                      <label className="text-sm font-medium text-gray-700 mb-1">
+                        مجموع کل
+                      </label>
                       <span className="text-lg font-bold text-emerald-700">
                         {records.find((r) => r.id === editingId)?.total || 0} ؋
                       </span>
@@ -341,7 +394,9 @@ const SalaryManagement = () => {
                         max={records.find((r) => r.id === editingId)?.total || undefined}
                         className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition disabled:opacity-50"
                         value={form.receipt}
-                        onChange={(e) => setForm({ ...form, receipt: Number(e.target.value) })}
+                        onChange={(e) =>
+                          setForm({ ...form, receipt: Number(e.target.value) })
+                        }
                         disabled={submitting}
                       />
                     </div>
@@ -414,6 +469,10 @@ const SalaryManagement = () => {
               </div>
               <div>
                 <h2 className="text-xl font-bold">لیست حضور و غیاب</h2>
+                <p className="text-sm text-white/80">
+                  {totalItems} رکورد ثبت شده
+                  {loading.records && " • در حال بارگذاری..."}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -443,7 +502,9 @@ const SalaryManagement = () => {
                   <th className="p-3 border-b font-semibold">#</th>
                   <th className="p-3 border-b font-semibold">کارمند</th>
                   <th className="p-3 border-b font-semibold">روزهای حضور</th>
-                  <th className="p-3 border-b font-semibold">مجموع اضافه‌کاری (ساعت)</th>
+                  <th className="p-3 border-b font-semibold">
+                    مجموع اضافه‌کاری (ساعت)
+                  </th>
                   <th className="p-3 border-b font-semibold">معاش اضافه‌کاری</th>
                   <th className="p-3 border-b font-semibold">معاش اصلی</th>
                   <th className="p-3 border-b font-semibold">مجموع کل</th>
@@ -471,20 +532,23 @@ const SalaryManagement = () => {
                             d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
                           />
                         </svg>
-                        <p className="text-gray-500 text-lg">هیچ رکوردی ثبت نشده است</p>
-                        <p className="text-gray-400 text-sm mt-1">برای شروع، حضور و غیاب جدیدی ثبت کنید</p>
+                        <p className="text-gray-500 text-lg">
+                          هیچ رکوردی ثبت نشده است
+                        </p>
+                        <p className="text-gray-400 text-sm mt-1">
+                          برای شروع، حضور و غیاب جدیدی ثبت کنید
+                        </p>
                       </div>
                     </td>
                   </tr>
                 ) : (
                   records.map((record) => {
-                    const attendanceDays = Object.values(record.attendance || {}).filter(
-                      (day) => day.attendance
-                    ).length;
-                    const totalOvertime = Object.values(record.attendance || {}).reduce(
-                      (sum, day) => sum + (day.overtime || 0),
-                      0
-                    );
+                    const attendanceDays = Object.values(
+                      record.attendance || {}
+                    ).filter((day) => day.attendance).length;
+                    const totalOvertime = Object.values(
+                      record.attendance || {}
+                    ).reduce((sum, day) => sum + (day.overtime || 0), 0);
 
                     return (
                       <tr
@@ -494,8 +558,12 @@ const SalaryManagement = () => {
                         <td className="p-3 text-gray-600">{record.id}</td>
                         <td className="p-3">
                           <div className="text-right">
-                            <div className="font-medium text-gray-800">{record.Staff?.name}</div>
-                            <div className="text-sm text-gray-500">{record.Staff?.fatherName}</div>
+                            <div className="font-medium text-gray-800">
+                              {record.Staff?.name}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {record.Staff?.fatherName}
+                            </div>
                           </div>
                         </td>
                         <td className="p-3">
@@ -540,7 +608,9 @@ const SalaryManagement = () => {
                           {record.createdAt
                             ? new Date(record.createdAt)
                                 .toLocaleDateString("eng-en")
-                                .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d))
+                                .replace(/[۰-۹]/g, (d) =>
+                                  "۰۱۲۳۴۵۶۷۸۹".indexOf(d)
+                                )
                             : "—"}
                         </td>
                         <td className="p-3">
@@ -571,6 +641,14 @@ const SalaryManagement = () => {
             </table>
           </div>
         )}
+
+          <div className="border-t border-gray-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          </div>
       </div>
     </div>
   );

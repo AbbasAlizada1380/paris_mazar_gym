@@ -191,44 +191,30 @@ export default function AthleteManager() {
   };
 
   // ─── Submit (Athlete create/update) ─────────────────────────────
-  const handleSubmit = async (formData) => {
+  // ─── Submit (Athlete create/update) ─────────────────────────────
+  const handleSubmit = async (data) => {
     if (submitting) return;
     setSubmitting(true);
 
-    const payload = {
-      full_name: formData.full_name,
-      father_name: formData.father_name,
-      permanent_residence: formData.permanent_residence || null,
-      current_residence: formData.current_residence || null,
-      nic_number: formData.nic_number || null,
-    };
-
-    const hasFiles = formData.document_pdf || formData.photo;
-    let dataToSend;
-    if (hasFiles) {
-      const fd = new FormData();
-      Object.keys(payload).forEach((key) => {
-        if (payload[key] !== null) fd.append(key, payload[key]);
-      });
-      if (formData.document_pdf) fd.append("document_pdf", formData.document_pdf);
-      if (formData.photo) fd.append("photo", formData.photo);
-      dataToSend = fd;
-    } else {
-      dataToSend = payload;
-    }
-
-    const config = hasFiles
-      ? { headers: { "Content-Type": "multipart/form-data" } }
-      : {};
-
     try {
+      // If data is FormData, set multipart header; otherwise default JSON
+      const config = data instanceof FormData
+        ? { headers: { "Content-Type": "multipart/form-data" } }
+        : {};
+
       if (editingId) {
-        await axios.put(`${BASE_URL}/athletes/${editingId}`, dataToSend, config);
+        await axios.put(`${BASE_URL}/athletes/${editingId}`, data, config);
       } else {
-        await axios.post(`${BASE_URL}/athletes`, dataToSend, config);
+        await axios.post(`${BASE_URL}/athletes`, data, config);
       }
-      if (isSearching && searchQuery) fetchData(currentPage, searchQuery);
-      else fetchData(currentPage, null);
+
+      // Refresh list
+      if (isSearching && searchQuery) {
+        fetchData(currentPage, searchQuery);
+      } else {
+        fetchData(currentPage, null);
+      }
+
       setOpenForm(false);
       setEditingId(null);
     } catch (err) {
@@ -397,11 +383,9 @@ export default function AthleteManager() {
           </div>
         )}
 
-        {totalPages > 1 && (
-          <div className="border-t border-gray-200">
-            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
-          </div>
-        )}
+        <div className="border-t border-gray-200">
+          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
+        </div>
       </div>
 
       {/* Image Preview Modal */}
@@ -544,9 +528,8 @@ export default function AthleteManager() {
                       value={feeForm.cabinate_num}
                       onChange={handleFeeChange}
                       disabled={!feeForm.has_cabinate}
-                      className={`w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition ${
-                        !feeForm.has_cabinate ? "bg-gray-100 text-gray-500" : ""
-                      }`}
+                      className={`w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition ${!feeForm.has_cabinate ? "bg-gray-100 text-gray-500" : ""
+                        }`}
                       min="1"
                       step="1"
                     />
@@ -575,11 +558,10 @@ export default function AthleteManager() {
                   <button
                     type="submit"
                     disabled={feeSubmitting}
-                    className={`px-6 py-3 rounded-lg font-medium shadow-md transition flex items-center gap-2 ${
-                      feeSubmitting
+                    className={`px-6 py-3 rounded-lg font-medium shadow-md transition flex items-center gap-2 ${feeSubmitting
                         ? "bg-gray-400 cursor-not-allowed"
                         : "bg-[#0F3A76] text-white hover:bg-[#0A2D5E]"
-                    }`}
+                      }`}
                   >
                     {feeSubmitting ? (
                       <>

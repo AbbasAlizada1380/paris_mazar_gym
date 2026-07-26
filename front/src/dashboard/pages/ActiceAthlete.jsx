@@ -5,6 +5,22 @@ import AthletePaidFeesPDF from "./report/AthletePaidFeesPDF";
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
+// Helper to determine row color based on end date
+function getRowColorClass(endDate) {
+  if (!endDate) return "";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  const diffDays = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+
+  if (diffDays > 3) return "bg-green-100 hover:bg-green-200";
+  if (diffDays >= 2 && diffDays <= 3) return "bg-yellow-100 hover:bg-yellow-200";
+  // 1 day, today, or past due
+  if (diffDays <= 1) return "bg-red-100 hover:bg-red-200";
+  return "";
+}
+
 const ActiveAthletes = () => {
   const [fees, setFees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -235,7 +251,7 @@ const ActiveAthletes = () => {
                 <thead className="bg-[#0F3A76] text-white">
                   <tr>
                     <th className="p-3 border-b font-semibold">#</th>
-                    <th className="p-3 border-b font-semibold">عکس</th> {/* New column */}
+                    <th className="p-3 border-b font-semibold">عکس</th>
                     <th className="p-3 border-b font-semibold">نام</th>
                     <th className="p-3 border-b font-semibold">شماره ملی</th>
                     <th className="p-3 border-b font-semibold">تاریخ شروع</th>
@@ -253,8 +269,12 @@ const ActiveAthletes = () => {
                     const photoUrl = fee.athlete?.photo
                       ? `${BASE_URL}/uploads/photos/${fee.athlete.photo}`
                       : null;
+                    const rowColor = getRowColorClass(fee.endDate);
                     return (
-                      <tr key={fee.id} className="hover:bg-gray-50 border-b last:border-0 transition-colors">
+                      <tr
+                        key={fee.id}
+                        className={`${rowColor} border-b last:border-0 transition-colors`}
+                      >
                         <td className="p-3 text-gray-600">{(currentPage - 1) * limit + index + 1}</td>
                         <td className="p-3">
                           {photoUrl ? (
@@ -317,7 +337,6 @@ const ActiveAthletes = () => {
             </div>
 
             {/* Pagination */}
-            {totalPages > 1 && (
               <div className="border-t border-gray-200">
                 <Pagination
                   currentPage={currentPage}
@@ -325,7 +344,6 @@ const ActiveAthletes = () => {
                   onPageChange={(page) => setCurrentPage(page)}
                 />
               </div>
-            )}
           </>
         )}
       </div>

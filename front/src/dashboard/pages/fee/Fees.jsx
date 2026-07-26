@@ -18,6 +18,22 @@ import {
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
+// Helper to determine row color based on end date
+function getRowColorClass(endDate) {
+  if (!endDate) return "";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  const diffDays = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+
+  if (diffDays > 3) return "bg-green-100 hover:bg-green-200";
+  if (diffDays >= 2 && diffDays <= 3) return "bg-yellow-100 hover:bg-yellow-200";
+  // 1 day, today, or past due
+  if (diffDays <= 1) return "bg-red-100 hover:bg-red-200";
+  return "";
+}
+
 export default function Fees() {
   // ---------- State ----------
   const [fees, setFees] = useState([]);
@@ -369,96 +385,103 @@ export default function Fees() {
                     </td>
                   </tr>
                 ) : (
-                  fees.map((f) => (
-                    <tr key={f.id} className="hover:bg-gray-50 border-b last:border-0 transition-colors">
-                      <td className="p-3">
-                        <div className="flex items-center gap-2 justify-center">
-                          {f.athlete?.photo && (
-                            <img
-                              src={`${BASE_URL}/uploads/photos/${f.athlete.photo}`}
-                              alt={f.athlete?.full_name}
-                              className="w-8 h-8 rounded-full object-cover border cursor-pointer"
-                              onClick={() => handleViewPhoto(f.athlete)}
-                              onError={(e) => (e.target.style.display = "none")}
-                            />
-                          )}
-                          <div>
-                            <div className="font-medium text-gray-800">{f.athlete?.full_name || "ناشناس"}</div>
-                            <div className="text-xs text-gray-500">{f.athlete?.father_name || ""}</div>
+                  fees.map((f) => {
+                    const rowColor = getRowColorClass(f.endDate);
+                    return (
+                      <tr
+                        key={f.id}
+                        className={`${rowColor} border-b last:border-0 transition-colors`}
+                      >
+                        <td className="p-3">
+                          <div className="flex items-center gap-2 justify-center">
+                            {f.athlete?.photo && (
+                              <img
+                                src={`${BASE_URL}/uploads/photos/${f.athlete.photo}`}
+                                alt={f.athlete?.full_name}
+                                className="w-8 h-8 rounded-full object-cover border cursor-pointer"
+                                onClick={() => handleViewPhoto(f.athlete)}
+                                onError={(e) => (e.target.style.display = "none")}
+                              />
+                            )}
+                            <div>
+                              <div className="font-medium text-gray-800">{f.athlete?.full_name || "ناشناس"}</div>
+                              <div className="text-xs text-gray-500">{f.athlete?.father_name || ""}</div>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="p-3 text-gray-600 font-mono text-sm">{f.athlete?.nic_number || "—"}</td>
-                      <td className="p-3">
-                        <div className="flex flex-col">
-                          <span className="text-gray-700">{f.startDate}</span>
-                          <span className="text-gray-400 text-xs">تا</span>
-                          <span className="text-gray-700">{f.endDate}</span>
-                        </div>
-                      </td>
-                      <td className="p-3 font-medium text-gray-900">{parseFloat(f.total).toLocaleString()} افغانی</td>
-                      <td className="p-3 text-green-600 font-medium">{parseFloat(f.received || 0).toLocaleString()} افغانی</td>
-                      <td className="p-3">
-                        <span className={`font-semibold ${f.remained > 0 ? "text-red-600" : "text-green-600"}`}>
-                          {parseFloat(f.remained || 0).toLocaleString()} افغانی
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        {f.has_cabinate ? (
-                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">دارد</span>
-                        ) : (
-                          <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs font-medium">ندارد</span>
-                        )}
-                      </td>
-                      <td className="p-3">{f.has_cabinate ? f.cabinate_num || "—" : "—"}</td>
-                      <td className="p-3">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${f.remained === 0
-                              ? "bg-green-100 text-green-800"
-                              : f.remained === f.total
+                        </td>
+                        <td className="p-3 text-gray-600 font-mono text-sm">{f.athlete?.nic_number || "—"}</td>
+                        <td className="p-3">
+                          <div className="flex flex-col">
+                            <span className="text-gray-700">{f.startDate}</span>
+                            <span className="text-gray-400 text-xs">تا</span>
+                            <span className="text-gray-700">{f.endDate}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 font-medium text-gray-900">{parseFloat(f.total).toLocaleString()} افغانی</td>
+                        <td className="p-3 text-green-600 font-medium">{parseFloat(f.received || 0).toLocaleString()} افغانی</td>
+                        <td className="p-3">
+                          <span className={`font-semibold ${f.remained > 0 ? "text-red-600" : "text-green-600"}`}>
+                            {parseFloat(f.remained || 0).toLocaleString()} افغانی
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          {f.has_cabinate ? (
+                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">دارد</span>
+                          ) : (
+                            <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs font-medium">ندارد</span>
+                          )}
+                        </td>
+                        <td className="p-3">{f.has_cabinate ? f.cabinate_num || "—" : "—"}</td>
+                        <td className="p-3">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              f.remained === 0
+                                ? "bg-green-100 text-green-800"
+                                : f.remained === f.total
                                 ? "bg-red-100 text-red-800"
                                 : "bg-yellow-100 text-yellow-800"
                             }`}
-                        >
-                          {f.remained === 0 ? "پرداخت شده" : f.remained === f.total ? "پرداخت نشده" : "بخشی"}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center justify-center gap-2">
-                          {/* View Photo button */}
-                          <button
-                            onClick={() => handleViewPhoto(f.athlete)}
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
-                            title="مشاهده عکس"
                           >
-                            <FaEye />
-                          </button>
-                          <button
-                            onClick={() => handleEdit(f)}
-                            className="p-2 text-[#0F3A76] hover:bg-blue-50 rounded-lg transition"
-                            title="ویرایش"
-                          >
-                            <FaEdit />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(f.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                            title="حذف"
-                          >
-                            <FaTrash />
-                          </button>
-                          <button
-                            onClick={() => setFeeModal({ isOpen: true, fee: f })}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                            title="چاپ کارت ورود"
-                          >
-                            <FaPrint />
-                          </button>
-                          <AthletePaidFeesPDF athleteId={f.athleteId} />
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                            {f.remained === 0 ? "پرداخت شده" : f.remained === f.total ? "پرداخت نشده" : "بخشی"}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center justify-center gap-2">
+                            {/* View Photo button */}
+                            <button
+                              onClick={() => handleViewPhoto(f.athlete)}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                              title="مشاهده عکس"
+                            >
+                              <FaEye />
+                            </button>
+                            <button
+                              onClick={() => handleEdit(f)}
+                              className="p-2 text-[#0F3A76] hover:bg-blue-50 rounded-lg transition"
+                              title="ویرایش"
+                            >
+                              <FaEdit />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(f.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                              title="حذف"
+                            >
+                              <FaTrash />
+                            </button>
+                            <button
+                              onClick={() => setFeeModal({ isOpen: true, fee: f })}
+                              className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                              title="چاپ کارت ورود"
+                            >
+                              <FaPrint />
+                            </button>
+                            <AthletePaidFeesPDF athleteId={f.athleteId} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

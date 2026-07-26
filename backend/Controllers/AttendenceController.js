@@ -48,15 +48,30 @@ export const createAttendance = async (req, res) => {
 };
 export const getAttendances = async (req, res) => {
   try {
-    const data = await Attendance.findAll({
+    // Extract pagination params from query
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    // Use findAndCountAll to get both data and total count
+    const { count, rows } = await Attendance.findAndCountAll({
       include: {
         model: Staff,
         attributes: ["id", "name"],
       },
       order: [["id", "DESC"]],
+      offset,
+      limit,
     });
 
-    res.json(data);
+    const totalPages = Math.ceil(count / limit);
+
+    res.json({
+      data: rows,
+      totalItems: count,
+      totalPages,
+      currentPage: page,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

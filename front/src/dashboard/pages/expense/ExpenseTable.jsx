@@ -146,7 +146,6 @@ const ExpenseTable = ({
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
         <div className="border-t border-gray-200">
           <Pagination
             currentPage={currentPage}
@@ -154,7 +153,6 @@ const ExpenseTable = ({
             onPageChange={onPageChange}
           />
         </div>
-      )}
     </div>
   );
 };
