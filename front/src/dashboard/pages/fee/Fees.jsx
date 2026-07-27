@@ -15,6 +15,7 @@ import {
   FaEye,
   FaPlus,
 } from "react-icons/fa";
+import TakenCabinets from "./TakenCabinets";
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
@@ -531,6 +532,7 @@ export default function Fees() {
           </div>
         </div>
       )}
+      <TakenCabinets/>
     </div>
   );
 }

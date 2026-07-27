@@ -29,28 +29,34 @@ const Navbar = () => {
   });
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [notifications] = useState([]); // You can populate this from your API
+  const [notifications] = useState([]);
   const profileDropdownRef = useRef(null);
-  const { currentUser } = useSelector((state) => state.user);
+
+  // ─── Get currentUser from Redux ──────────────────────────────
+  const { currentUser } = useSelector((state) => state.user || {});
+
+  // ─── Fallback to localStorage if Redux state is empty ────────
+  const userFromStorage = JSON.parse(localStorage.getItem("authData"))?.userData;
+  const user = currentUser || userFromStorage;
+
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
 
+  // ─── Update date/time ─────────────────────────────────────────
   useEffect(() => {
     const updateDate = () => {
       const now = moment();
       const jMonthIndex = now.jMonth();
-      const shamsiMonthName = jMonthIndex;
+      const shamsiMonthName = jMonthIndex; // can map to Persian month names if needed
 
-      const newDateInfo = {
+      setDateInfo({
         day: now.format("dddd"),
         year: now.format("jYYYY"),
         month: shamsiMonthName,
         dateNumber: now.format("jD"),
         time: now.format("HH:mm"),
-      };
-
-      setDateInfo(newDateInfo);
+      });
     };
 
     updateDate();
@@ -58,6 +64,7 @@ const Navbar = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // ─── Click outside dropdown ──────────────────────────────────
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -71,6 +78,7 @@ const Navbar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // ─── Handlers ──────────────────────────────────────────────────
   const handleLogout = () => {
     dispatch(signOutSuccess());
     setIsProfileDropdownOpen(false);
@@ -86,15 +94,20 @@ const Navbar = () => {
     setIsProfileModalOpen(false);
   };
 
-  const getInitials = (firstName = "", lastName = "") => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  // ─── Helper: get initials from fullname ──────────────────────
+  const getInitials = (fullname = "") => {
+    const parts = fullname.trim().split(" ");
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return fullname.slice(0, 2).toUpperCase();
   };
 
   const notificationCount = notifications.length;
 
   return (
     <>
-      <nav className="bg-white text-gray-800 py-2 shadow-sm px-6 grid grid-cols-3 border-b border-gray-200  sticky top-0 z-40 backdrop-blur-sm">
+      <nav className="bg-white text-gray-800 py-2 shadow-sm px-6 grid grid-cols-3 border-b border-gray-200 sticky top-0 z-40 backdrop-blur-sm">
         {/* Left Section - Logo/Brand */}
         <div className="flex items-center">
           <div className="flex items-center gap-3">
@@ -109,16 +122,12 @@ const Navbar = () => {
 
         {/* Center Section - Date & Time */}
         <div className="hidden md:flex items-center justify-center">
-          <div className="">
-            <div className="text-center flex items-center gap-4">
-              <div className="text-right flex items-center gap-x-3">
-                <p className="text-xl font-bold text-cyan-800">
-                  {dateInfo.day}
-                </p>
-                <p className="text-sm text-gray-600 font-medium">
-                  {dateInfo.dateNumber} {dateInfo.month} {dateInfo.year}
-                </p>
-              </div>
+          <div className="text-center flex items-center gap-4">
+            <div className="text-right flex items-center gap-x-3">
+              <p className="text-xl font-bold text-cyan-800">{dateInfo.day}</p>
+              <p className="text-sm text-gray-600 font-medium">
+                {dateInfo.dateNumber} {dateInfo.month} {dateInfo.year}
+              </p>
             </div>
           </div>
         </div>
@@ -144,15 +153,15 @@ const Navbar = () => {
               onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
             >
               <div className="flex items-center gap-3">
-                {currentUser?.profile_picture ? (
+                {user?.photo ? (
                   <img
-                    src={currentUser.profile_picture}
+                    src={`${import.meta.env.VITE_BASE_URL}/uploads/photos/${user.photo}`}
                     alt="User Avatar"
                     className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 group-hover:border-cyan-500 transition-all duration-300 shadow-sm"
                   />
-                ) : currentUser?.first_name || currentUser?.last_name ? (
+                ) : user?.fullname ? (
                   <div className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm border-2 border-white shadow-lg">
-                    {getInitials(currentUser.first_name, currentUser.last_name)}
+                    {getInitials(user.fullname)}
                   </div>
                 ) : (
                   <FaUserCircle className="text-3xl text-gray-400 group-hover:text-cyan-600 transition-colors" />
@@ -160,19 +169,17 @@ const Navbar = () => {
 
                 <div className="hidden lg:block text-right">
                   <p className="text-sm font-semibold text-gray-800 group-hover:text-cyan-800">
-                    {currentUser
-                      ? `${currentUser.first_name || ""} ${currentUser.last_name || ""
-                      }`
-                      : "بارگذاری..."}
+                    {user?.fullname || "کاربر"}
                   </p>
                   <p className="text-xs text-gray-500 capitalize">
-                    {currentUser?.role || "کاربر"}
+                    {user?.role || "کاربر"}
                   </p>
                 </div>
 
                 <FaChevronDown
-                  className={`text-gray-400 transition-transform duration-200 ${isProfileDropdownOpen ? "rotate-180" : ""
-                    }`}
+                  className={`text-gray-400 transition-transform duration-200 ${
+                    isProfileDropdownOpen ? "rotate-180" : ""
+                  }`}
                   size={12}
                 />
               </div>
@@ -190,18 +197,15 @@ const Navbar = () => {
                   {/* User Info Header */}
                   <div className="p-4 border-b border-gray-100">
                     <div className="flex items-center gap-3">
-                      {currentUser?.profile_picture ? (
+                      {user?.photo ? (
                         <img
-                          src={currentUser.profile_picture}
+                          src={`${import.meta.env.VITE_BASE_URL}/uploads/photos/${user.photo}`}
                           alt="User Avatar"
                           className="w-12 h-12 rounded-full object-cover border-2 border-cyan-100"
                         />
-                      ) : currentUser?.first_name || currentUser?.last_name ? (
+                      ) : user?.fullname ? (
                         <div className="w-12 h-12 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg border-2 border-white shadow-lg">
-                          {getInitials(
-                            currentUser.first_name,
-                            currentUser.last_name
-                          )}
+                          {getInitials(user.fullname)}
                         </div>
                       ) : (
                         <FaUserCircle className="text-4xl text-gray-400" />
@@ -209,13 +213,13 @@ const Navbar = () => {
 
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 truncate">
-                          {currentUser?.first_name} {currentUser?.last_name}
+                          {user?.fullname || "کاربر"}
                         </p>
                         <p className="text-xs text-gray-500 truncate">
-                          {currentUser?.email}
+                          {user?.email || ""}
                         </p>
                         <p className="text-xs text-cyan-600 font-medium capitalize mt-1">
-                          {currentUser?.role || "کاربر"}
+                          {user?.role || "کاربر"}
                         </p>
                       </div>
                     </div>
@@ -251,7 +255,7 @@ const Navbar = () => {
       <ProfileModal
         isOpen={isProfileModalOpen}
         onClose={handleCloseProfileModal}
-        currentUser={currentUser}
+        currentUser={user}
       />
     </>
   );

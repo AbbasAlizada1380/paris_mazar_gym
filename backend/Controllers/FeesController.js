@@ -603,3 +603,64 @@ Fees.belongsTo(Athletes, {
     foreignKey: "athleteId",
     as: "athlete",
 });
+
+/**
+ * @desc   Get all taken cabinet numbers from currently active fees
+ * @route  GET /api/fees/taken-cabinets
+ */
+export const getTakenCabinets = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Find all active fees that have a valid cabinet assigned
+    const fees = await Fees.findAll({
+      where: {
+        isactive: true,
+        has_cabinate: true,
+        cabinate_num: {
+          [Op.ne]: null,      // not null
+          [Op.ne]: '',        // not empty string
+        },
+        startDate: { [Op.lte]: today },
+        endDate: { [Op.gte]: today },
+      },
+      include: [
+        {
+          model: Athletes,
+          as: "athlete",
+          attributes: ["id", "full_name", "father_name", "nic_number", "photo"],
+        },
+      ],
+      order: [["cabinate_num", "ASC"]],
+    });
+
+    // Deduplicate by cabinate_num to show only unique taken cabinets
+    const takenMap = new Map();
+    fees.forEach((fee) => {
+      if (!takenMap.has(fee.cabinate_num)) {
+        takenMap.set(fee.cabinate_num, {
+          cabinate_num: fee.cabinate_num,
+          athlete: fee.athlete,
+          feeId: fee.id,
+          startDate: fee.startDate,
+          endDate: fee.endDate,
+        });
+      }
+    });
+
+    const data = Array.from(takenMap.values());
+
+    res.status(200).json({
+      message: "Active taken cabinets retrieved successfully",
+      count: data.length,
+      data,
+    });
+  } catch (error) {
+    console.error("Error fetching taken cabinets:", error);
+    res.status(500).json({
+      message: "Error fetching taken cabinets",
+      error: error.message,
+    });
+  }
+};

@@ -1,5 +1,6 @@
-
+import { useEffect, useState } from "react";
 import { FaCheck, FaSpinner, FaUser } from "react-icons/fa";
+import axios from "axios";
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
@@ -13,13 +14,67 @@ export default function FeeForm({
   onCancel,
   submitting,
 }) {
+  // ---------- State for available cabinets ----------
+  const [availableCabinets, setAvailableCabinets] = useState([]);
+  const [loadingCabinets, setLoadingCabinets] = useState(true);
+
+  // ---------- Fetch taken cabinets and compute available ----------
+  useEffect(() => {
+    const fetchTakenCabinets = async () => {
+      setLoadingCabinets(true);
+      try {
+        const res = await axios.get(`${BASE_URL}/fees/taken-cabinets`);
+        const takenData = res.data.data || [];
+
+        // All possible cabinet numbers (1 to 120)
+        const allNumbers = Array.from({ length: 120 }, (_, i) => i + 1);
+
+        // Extract taken numbers, but EXCLUDE the current fee's own cabinet if editing
+        const takenNumbers = takenData
+          .filter((item) => {
+            // If editing, allow this fee's own cabinet (so it stays available)
+            if (editingId && item.feeId === editingId) return false;
+            return true;
+          })
+          .map((item) => Number(item.cabinate_num));
+
+        // Available = all numbers minus taken ones
+        const available = allNumbers.filter(
+          (num) => !takenNumbers.includes(num)
+        );
+
+        setAvailableCabinets(available);
+      } catch (err) {
+        console.error("Error fetching taken cabinets:", err);
+        // On error, show no cabinets (or you can fallback to all numbers)
+        setAvailableCabinets([]);
+      } finally {
+        setLoadingCabinets(false);
+      }
+    };
+
+    fetchTakenCabinets();
+  }, [editingId]); // Re‑fetch if editingId changes (e.g., new fee vs edit)
+
+  // ---------- Render ----------
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
       <div className="bg-[#0F3A76] text-white p-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-white/20 rounded-full">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0-4.5A5.5 5.5 0 016.5 10.5 5.5 5.5 0 0012 16a5.5 5.5 0 005.5-5.5A5.5 5.5 0 0012 5.5z" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0-4.5A5.5 5.5 0 016.5 10.5 5.5 5.5 0 0012 16a5.5 5.5 0 005.5-5.5A5.5 5.5 0 0012 5.5z"
+              />
             </svg>
           </div>
           <div>
@@ -158,19 +213,42 @@ export default function FeeForm({
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 شماره کابینت
               </label>
-              <input
-                type="number"
-                name="cabinate_num"
-                placeholder="مثلاً ۱۰۱"
-                value={form.cabinate_num}
-                onChange={onChange}
-                disabled={!form.has_cabinate}
-                className={`w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition ${
-                  !form.has_cabinate ? "bg-gray-100 text-gray-500" : ""
-                }`}
-                min="1"
-                step="1"
-              />
+              {form.has_cabinate ? (
+                loadingCabinets ? (
+                  <div className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-gray-100 text-gray-500 flex items-center gap-2">
+                    <FaSpinner className="animate-spin" />
+                    بارگذاری کابینت‌ها...
+                  </div>
+                ) : availableCabinets.length === 0 ? (
+                  <div className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-gray-100 text-red-500">
+                    هیچ کابینت آزادی موجود نیست
+                  </div>
+                ) : (
+                  <select
+                    name="cabinate_num"
+                    value={form.cabinate_num || ""}
+                    onChange={onChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#0F3A76] focus:border-[#0F3A76] transition"
+                    required={form.has_cabinate}
+                  >
+                    <option value="">انتخاب شماره کابینت</option>
+                    {availableCabinets.map((num) => (
+                      <option key={num} value={num}>
+                        {num}
+                      </option>
+                    ))}
+                  </select>
+                )
+              ) : (
+                <input
+                  type="number"
+                  name="cabinate_num"
+                  placeholder="غیرفعال"
+                  value=""
+                  disabled
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed"
+                />
+              )}
             </div>
           </div>
 
@@ -178,7 +256,13 @@ export default function FeeForm({
             <div className="p-3 bg-gray-50 rounded-lg">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">باقیمانده:</span>
-                <span className={`font-semibold ${form.total - form.received > 0 ? "text-red-600" : "text-green-600"}`}>
+                <span
+                  className={`font-semibold ${
+                    form.total - form.received > 0
+                      ? "text-red-600"
+                      : "text-green-600"
+                  }`}
+                >
                   {(form.total - form.received).toLocaleString()} افغانی
                 </span>
               </div>

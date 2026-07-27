@@ -8,9 +8,10 @@ import {
   getFeesInRange,
   getActiveFeesToday,
   searchFeesByAthlete,
-  searchActiveFeesByAthlete,  // ⬅️ new import
+  searchActiveFeesByAthlete,
   updateFeeActiveStatus,
   getPaidFeesByAthlete,
+  getTakenCabinets, // ⬅️ NEW import
 } from "../Controllers/FeesController.js";
 
 const feesRouter = express.Router();
@@ -22,7 +23,10 @@ feesRouter.get("/active", getActiveFeesToday);
 
 // Search routes
 feesRouter.get("/search", searchFeesByAthlete);               // all fees
-feesRouter.get("/search/active", searchActiveFeesByAthlete);  // ⬅️ NEW: only active fees
+feesRouter.get("/search/active", searchActiveFeesByAthlete);  // only active fees
+
+// ⬇️ NEW: Get taken cabinets (must come before /:id routes)
+feesRouter.get("/taken-cabinets", getTakenCabinets);
 
 feesRouter.get("/:athleteId/paid", getPaidFeesByAthlete);
 feesRouter.get("/update-active", updateFeeActiveStatus);        // all fees
