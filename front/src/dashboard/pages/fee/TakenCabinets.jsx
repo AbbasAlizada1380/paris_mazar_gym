@@ -4,7 +4,7 @@ import { FaSpinner, FaEye } from "react-icons/fa";
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
-export default function TakenCabinets() {
+export default function TakenCabinets({ refreshKey }) {
   const [cabinets, setCabinets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,11 +28,9 @@ export default function TakenCabinets() {
       setLoading(false);
     }
   }, []);
-
   useEffect(() => {
     fetchTakenCabinets();
-  }, [fetchTakenCabinets]);
-
+  }, [fetchTakenCabinets, refreshKey]); // runs on mount and when key changes
   // ---------- Filter cabinets based on search ----------
   const filteredCabinets = useMemo(() => {
     if (!searchQuery.trim()) return cabinets;

@@ -14,10 +14,15 @@ function getRowColorClass(endDate) {
   end.setHours(0, 0, 0, 0);
   const diffDays = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
 
+  // 🔴 Expired
+  if (diffDays < 0) return "bg-red-100 hover:bg-red-200";
+
+  // 🟡 3 or fewer days left (but not expired)
+  if (diffDays >= 0 && diffDays <= 3) return "bg-yellow-100 hover:bg-yellow-200";
+
+  // 🟢 More than 3 days left
   if (diffDays > 3) return "bg-green-100 hover:bg-green-200";
-  if (diffDays >= 2 && diffDays <= 3) return "bg-yellow-100 hover:bg-yellow-200";
-  // 1 day, today, or past due
-  if (diffDays <= 1) return "bg-red-100 hover:bg-red-200";
+
   return "";
 }
 
