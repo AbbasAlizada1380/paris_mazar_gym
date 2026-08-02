@@ -135,7 +135,7 @@ const Navbar = () => {
         {/* Right Section - User Menu & Notifications */}
         <div className="flex items-center justify-end gap-4">
           {/* Notifications Bell */}
-          <div className="relative">
+          {/* <div className="relative">
             <button className="relative p-2 text-gray-600 hover:text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all duration-200 group">
               <FaBell size={18} />
               {notificationCount > 0 && (
@@ -144,7 +144,7 @@ const Navbar = () => {
                 </span>
               )}
             </button>
-          </div>
+          </div> */}
 
           {/* User Profile Dropdown */}
           <div ref={profileDropdownRef} className="relative">
